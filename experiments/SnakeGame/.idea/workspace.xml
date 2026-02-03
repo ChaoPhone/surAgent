@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="b7571419-5fbf-4409-8547-139ffd8b649f" name="更改" comment="">
+      <change afterPath="$PROJECT_DIR$/../README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../skills/File_Skills.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../skills/Python_Skills.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../skills/Shell_Skills.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../skills/Web_Skills.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../skills/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../config/agents_config.json" beforeDir="false" afterPath="$PROJECT_DIR$/../config/agents_config.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../main.py" beforeDir="false" afterPath="$PROJECT_DIR$/../main.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../prompts/Kernel.md" beforeDir="false" afterPath="$PROJECT_DIR$/../prompts/Kernel.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../prompts/Structure.md" beforeDir="false" afterPath="$PROJECT_DIR$/../prompts/Structure.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../prompts/Surface.md" beforeDir="false" afterPath="$PROJECT_DIR$/../prompts/Surface.md" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../.." />
+  </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "ChaoPhone"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/ChaoPhone/surAgent.git",
+    "accountId": "e5297fb7-d13e-4619-b0a7-e2c374f0f4dc"
+  }
+}]]></component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 8
+}]]></component>
+  <component name="ProjectId" id="39A8n2WwhfZQRXlbKCAa7k4jsNO" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "Python.main.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "my-feature"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-41e8cd69c857-64d779b69b7a-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-251.26927.90" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="默认任务">
+      <changelist id="b7571419-5fbf-4409-8547-139ffd8b649f" name="更改" comment="" />
+      <created>1770127677877</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1770127677877</updated>
+    </task>
+    <servers />
+  </component>
+</project>

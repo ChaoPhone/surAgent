@@ -4,6 +4,8 @@ import sys
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from agent_core import DynamicAgent
 from blackboard import MissionContext
+from skills import SKILL_REGISTRY, ROLE_SKILLS # <--- 导入新写的技能库
+
 
 # ================= 全局状态 =================
 blackboard = MissionContext()
@@ -59,16 +61,66 @@ def mark_mission_complete(final_report: str):
 
 # ================= 引擎逻辑 =================
 
+# main.py 中替换这个函数
+
 def load_agents():
+    # 1. 【修复红线】真实读取配置文件
     path = os.path.join(os.path.dirname(__file__), "config", "agents_config.json")
-    with open(path, 'r', encoding='utf-8') as f:
-        config = json.load(f)
 
+    if not os.path.exists(path):
+        print(f"❌ 错误：找不到配置文件 {path}")
+        return
+
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            config = json.load(f)  # <--- 这里定义了 config 变量
+    except Exception as e:
+        print(f"❌ 配置文件读取失败: {e}")
+        return
+
+    print(f"🔍 发现配置文件，包含 {len(config)} 个角色定义。")
+
+    # 2. 遍历配置
     for cfg in config:
-        agent = DynamicAgent(cfg['name'], cfg['model'], cfg['provider'], cfg['prompt_file'])
-        agent_registry[agent.name] = agent
-    print(f"✅ 已加载 {len(agent_registry)} 个 Agent")
+        # A. 基础工具 (所有 Agent 都有的)
+        base_tools = [update_blackboard, read_blackboard, call_peer]
 
+        # B. 加载 JSON 配置的额外工具
+        json_tools = []
+        if "tools" in cfg:
+            for t_name in cfg["tools"]:
+                # 优先从 skills 库里找
+                if t_name in SKILL_REGISTRY:
+                    json_tools.append(SKILL_REGISTRY[t_name])
+                # 也可以兼容 main.py 里定义的本地工具 (如 dispatch_mission)
+                elif t_name in globals():
+                    json_tools.append(globals()[t_name])
+                else:
+                    # 如果工具既不在 skills 也不在 main.py，说明配置写错了
+                    print(f"⚠️ 警告: Agent [{cfg['name']}] 配置了未知工具 '{t_name}'")
+
+        # C. 加载角色专属工具 (从 ROLE_SKILLS 查找)
+        role_tools = ROLE_SKILLS.get(cfg['name'], [])
+
+        # D. 合并所有工具 (去重)
+        final_tools = list(set(base_tools + json_tools + role_tools))
+
+        # 3. 实例化 Agent
+        new_agent = DynamicAgent(
+            name=cfg['name'],
+            model=cfg['model'],
+            provider=cfg['provider'],
+            base_prompt_file=cfg['prompt_file']
+        )
+
+        # 注入工具
+        new_agent.client.tools = final_tools
+
+        # 注册到全局字典
+        agent_registry[new_agent.name] = new_agent
+        print(f"   ✅ 加载角色: {new_agent.name} (工具数: {len(final_tools)})")
+
+    print(f"✅ 初始化完成，共加载 {len(agent_registry)} 个 Agent")
 
 # --- 递归子程序循环 (Subroutine Loop) ---
 def run_subroutine_loop(agent, query, current_depth):
@@ -125,29 +177,39 @@ def run_subroutine_loop(agent, query, current_depth):
 
 # --- 全自动主循环 (Auto-Pilot Loop) ---
 def run_main_loop(user_goal):
+    # 1. 确保 Summoner 存在
+    if "Summoner" not in agent_registry:
+        print("❌ 错误：Agent Registry 中找不到 Summoner！请检查 load_agents 是否成功。")
+        return
+
     current_agent = agent_registry["Summoner"]
 
     # 初始输入是用户的需求
-    # 注意：在全自动模式下，Summoner 需要不仅看 User Input，还要看 Blackboard
     messages = [HumanMessage(content=f"终极任务目标：{user_goal}\n请检查黑板状态，开始自动推进，直到代码全部写完。")]
 
     print(f"\n🚀 [AUTO-MODE] 任务启动: {user_goal}\n")
 
-    MAX_AUTO_TURNS = 66  # 防止死循环，最多自动跑 15 轮
+    MAX_AUTO_TURNS = 66  # 防止死循环
     turn_count = 0
 
     while turn_count < MAX_AUTO_TURNS:
         turn_count += 1
         print(f"🔄 [Turn {turn_count}/{MAX_AUTO_TURNS}] 主角: {current_agent.name}")
 
-        # 动态工具列表
+        # 动态工具列表配置
         if current_agent.name == "Summoner":
-            # Summoner 多了一个“任务完成”按钮
+            # Summoner 拥有调度和结束权限
+            # 注意：dispatch_mission 和 mark_mission_complete 必须在 main.py 定义或导入
             tools = [dispatch_mission, read_blackboard, mark_mission_complete]
         else:
-            tools = [update_blackboard, read_blackboard, call_peer]
+            # 工兵拥有基础工具 + 互调权限 + 自身携带的特殊 Skills
+            # 注意：current_agent.client.tools 包含了 load_agents 时加载的所有工具
+            # 这里我们取并集，确保 main.py 定义的核心工具也在其中
+            # 但为了简化，通常 current_agent.client.tools 已经包含了所有需要的
+            # 这里的 tools 列表是传给 LLM 告诉它"你可以用什么"
+            tools = current_agent.client.tools
 
-        # 调用 LLM
+            # 调用 LLM
         response = current_agent.client.get_completion(
             model=current_agent.model,
             messages=[SystemMessage(content=current_agent.get_full_instructions())] + messages,
@@ -173,14 +235,20 @@ def run_main_loop(user_goal):
             args = tool_call["args"]
             print(f"⚙️  {current_agent.name} -> {fn_name}")
 
+            # --- 1. 处理任务完成 ---
             if fn_name == "mark_mission_complete":
                 print("\n🎉🎉🎉 任务全自动完成！ 🎉🎉🎉")
                 print("================ 最终报告 ================")
                 print(args.get('final_report'))
+                # 这里会触发 save_code_to_disk (如果在 mark_mission_complete 函数里写了的话)
+                save_res = mark_mission_complete(**args)
+                print(save_res)
                 print("==========================================")
                 return  # 彻底退出循环
 
+            # --- 2. 处理任务分发 (Summoner) ---
             elif fn_name == "dispatch_mission":
+                # 这里的 dispatch_mission 是 main.py 里的函数
                 new_agent = dispatch_mission(**args)
                 if isinstance(new_agent, DynamicAgent):
                     print(f"👉 指挥棒交给 -> {new_agent.name}")
@@ -188,14 +256,32 @@ def run_main_loop(user_goal):
                         ToolMessage(content=f"Transferred to {new_agent.name}", tool_call_id=tool_call["id"]))
                     current_agent = new_agent
                 else:
+                    # 如果 dispatch 返回字符串错误
                     messages.append(ToolMessage(content=str(new_agent), tool_call_id=tool_call["id"]))
 
-            elif fn_name in ["call_peer", "update_blackboard", "read_blackboard"]:
-                # ... (保持原有的处理逻辑) ...
-                if fn_name == "call_peer":
-                    res = run_subroutine_loop(agent_registry[args['target_agent']], args['specific_query'], 1)
+
+            # --- 3. 处理 P2P 互调 (增加容错) ---
+            elif fn_name == "call_peer":
+                target_name = args.get('target_agent')
+                # ✅ 安全检查：防止 AI 叫错名字 (比如叫 'Worker')
+                if target_name in agent_registry:
+                    res = run_subroutine_loop(agent_registry[target_name], args['specific_query'], 1)
                 else:
+                    # 友好的错误提示，让 AI 重试
+                    available_agents = list(agent_registry.keys())
+                    res = f"System Error: Agent '{target_name}' not found. Available agents: {available_agents}"
+
+                messages.append(ToolMessage(content=str(res), tool_call_id=tool_call["id"]))
+
+            # --- 4. 处理其他通用工具 (黑板 + Skills) ---
+            else:
+                # 查找顺序：先找 globals() (main.py定义的)，再找 SKILL_REGISTRY (技能库)
+                if fn_name in globals():
                     res = globals()[fn_name](**args)
+                elif fn_name in SKILL_REGISTRY:
+                    res = SKILL_REGISTRY[fn_name](**args)
+                else:
+                    res = f"System Error: Tool '{fn_name}' execution failed. Function not found in registry."
 
                 messages.append(ToolMessage(content=str(res), tool_call_id=tool_call["id"]))
 
@@ -219,7 +305,7 @@ if __name__ == "__main__":
             user_input = input("\n🙋 召唤师指令 (User): ").strip()
 
             # 处理退出
-            if user_input.lower() in ['exit', 'quit', 'q']:
+            if user_input.lower() in ['exit', 'quit', 'q', '结束', '退出']:
                 print("\n👋 蜂群已解散。再见！")
                 break
 

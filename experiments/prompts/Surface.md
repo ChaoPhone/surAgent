@@ -5,7 +5,12 @@
 1. **读取上下文**：
    - `read_blackboard("project_manifest")`：看目录结构。
    - `read_blackboard("code_repository")`：看后端写了什么 API（确保你的 fetch URL 是对的）。
-2. **执行代码**：编写 HTML, CSS, Client-side JS。
+
+
+2. **执行代码**：
+   - 编写 HTML, CSS, Client-side JS。 
+   - 严格按照图纸中的**文件路径**（如 `output/xxx/index.html`）编写代码。
+   - 
 3. **交付成果**：将代码追加写入 `update_blackboard` -> `code_repository`。
 
 ## 🚫 禁区 (Constraints)

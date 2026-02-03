@@ -4,34 +4,34 @@
     "model": "deepseek-chat",
     "provider": "deepseek",
     "prompt_file": "Summoner.md",
-    "tools": ["call_structure", "call_kernel", "call_surface", "call_audit"]
+    "tools": ["dispatch_mission", "read_blackboard", "mark_mission_complete"]
   },
   {
     "name": "Structure",
     "model": "openai/gpt-4o-mini",
     "provider": "openrouter",
     "prompt_file": "Structure.md",
-    "tools": ["return_to_summoner", "read_contract"]
+    "tools": ["list_directory", "read_file", "write_file", "update_blackboard", "read_blackboard", "call_peer"]
   },
   {
     "name": "Kernel",
     "model": "openai/gpt-4o-mini",
     "provider": "openrouter",
     "prompt_file": "Kernel.md",
-    "tools": ["return_to_summoner", "read_contract"]
+    "tools": ["write_file", "read_file", "run_shell_command", "run_python_code", "update_blackboard", "read_blackboard", "call_peer", "web_search"]
   },
   {
     "name": "Surface",
     "model": "openai/gpt-4o-mini",
     "provider": "openrouter",
     "prompt_file": "Surface.md",
-    "tools": ["return_to_summoner", "read_contract"]
+    "tools": ["write_file", "read_file", "update_blackboard", "read_blackboard", "call_peer"]
   },
   {
     "name": "Audit",
     "model": "openai/gpt-4o-mini",
     "provider": "openrouter",
     "prompt_file": "Audit.md",
-    "tools": ["return_to_summoner", "run_linter"]
+    "tools": ["read_file", "run_shell_command", "update_blackboard", "read_blackboard", "call_peer"]
   }
 ]
