@@ -1,0 +1,13 @@
+{
+  "communication_protocol": {
+    "max_p2p_turns": 7,
+    "max_call_depth": 3,
+    "instruction": "Worker之间协作必须使用 `call_peer` 工具。若 7 轮未解决，必须停止并向调用者报错。"
+  },
+  "blackboard_keys": {
+    "project_manifest": "Markdown格式的项目顶层设计、文件树结构",
+    "api_schema": "JSON格式的后端接口定义、数据库表结构",
+    "runtime_logs": "纯文本格式的运行报错、调试信息",
+    "code_repository": "代码仓库，格式为 {'filename': 'code_content'}"
+  }
+}

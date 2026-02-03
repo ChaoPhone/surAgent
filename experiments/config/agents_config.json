@@ -1,0 +1,37 @@
+[
+  {
+    "name": "Summoner",
+    "model": "deepseek-chat",
+    "provider": "deepseek",
+    "prompt_file": "Summoner.md",
+    "tools": ["call_structure", "call_kernel", "call_surface", "call_audit"]
+  },
+  {
+    "name": "Structure",
+    "model": "openai/gpt-4o-mini",
+    "provider": "openrouter",
+    "prompt_file": "Structure.md",
+    "tools": ["return_to_summoner", "read_contract"]
+  },
+  {
+    "name": "Kernel",
+    "model": "openai/gpt-4o-mini",
+    "provider": "openrouter",
+    "prompt_file": "Kernel.md",
+    "tools": ["return_to_summoner", "read_contract"]
+  },
+  {
+    "name": "Surface",
+    "model": "openai/gpt-4o-mini",
+    "provider": "openrouter",
+    "prompt_file": "Surface.md",
+    "tools": ["return_to_summoner", "read_contract"]
+  },
+  {
+    "name": "Audit",
+    "model": "openai/gpt-4o-mini",
+    "provider": "openrouter",
+    "prompt_file": "Audit.md",
+    "tools": ["return_to_summoner", "run_linter"]
+  }
+]
