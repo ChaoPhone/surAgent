@@ -73,3 +73,56 @@ def list_directory(dir_path: str = "."):
         return tree_str if tree_str else "Directory is empty."
     except Exception as e:
         return f"Error listing directory: {str(e)}"
+
+
+def replace_file_lines(file_path: str, start_line: int, end_line: int, new_content: str):
+    """
+    【精准修改】替换文件中指定行号范围的内容。
+    Args:
+        file_path: 文件路径 (如 output/snake_game/main.py)
+        start_line: 起始行号 (从 1 开始)
+        end_line: 结束行号 (包含该行)
+        new_content: 新的代码片段
+    """
+    try:
+        # 1. 路径清洗
+        clean_path = file_path.lstrip("./").lstrip("/")
+        if not clean_path.startswith("output"):
+            target_path = os.path.join("output", clean_path)
+        else:
+            target_path = clean_path
+
+        if not os.path.exists(target_path):
+            return f"Error: File {target_path} not found."
+
+        # 2. 读取所有行
+        with open(target_path, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+
+        # 3. 校验行号
+        total_lines = len(lines)
+        if start_line < 1 or start_line > total_lines:
+            return f"Error: Start line {start_line} is out of range (Total: {total_lines})."
+
+        # 修正 end_line，允许 -1 表示到最后
+        if end_line == -1 or end_line > total_lines:
+            end_line = total_lines
+
+        if start_line > end_line:
+            return f"Error: Start line {start_line} is greater than end line {end_line}."
+
+        # 4. 执行替换 (注意 Python 列表是从 0 开始，而行号是从 1 开始)
+        # 转换 new_content 为列表，确保末尾有换行
+        new_lines = [line + '\n' if not line.endswith('\n') else line for line in new_content.splitlines()]
+
+        # 核心切片逻辑
+        final_lines = lines[:start_line - 1] + new_lines + lines[end_line:]
+
+        # 5. 写回文件
+        with open(target_path, 'w', encoding='utf-8') as f:
+            f.writelines(final_lines)
+
+        return f"Success: Lines {start_line}-{end_line} replaced in {target_path}. New file size: {len(final_lines)} lines."
+
+    except Exception as e:
+        return f"Error replacing lines: {str(e)}"

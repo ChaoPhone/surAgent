@@ -3,6 +3,12 @@ import json
 import sys
 from langchain_openai import ChatOpenAI
 
+# 【新增】尝试导入监控模块
+try:
+    from Debug.monitor import monitor
+except ImportError:
+    monitor = None
+
 
 class LLMClient:
     def __init__(self, provider="openrouter"):
@@ -30,10 +36,25 @@ class LLMClient:
                 model=model,
                 openai_api_key=self.api_key,
                 openai_api_base=self.base_url,
-                temperature=0.1  # 极低温度，确保工具调用准确
+                temperature=0.1
             )
+
+            # 执行调用
             if tools:
-                return llm.bind_tools(tools).invoke(messages)
-            return llm.invoke(messages)
+                response = llm.bind_tools(tools).invoke(messages)
+            else:
+                response = llm.invoke(messages)
+
+            # 【新增】Token 监控埋点
+            if monitor and hasattr(response, 'response_metadata'):
+                usage = response.response_metadata.get('token_usage', {})
+                monitor.log_token_usage(
+                    input_tokens=usage.get('prompt_tokens', 0),
+                    output_tokens=usage.get('completion_tokens', 0),
+                    model=model
+                )
+
+            return response
+
         except Exception as e:
             return f"System Error: LLM 调用失败 - {str(e)}"

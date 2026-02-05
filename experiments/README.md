@@ -1,144 +1,62 @@
 
 ---
 
-# 🐝 Swarm Agent Framework (v0.1: 召唤师与召唤物)
+# 🐝 Swarm Agent Framework (v0.2: The Trinity / 三位一体)
 
 ### 🚀 核心摘要 (Executive Summary)
 
-本项目实现了一个基于 **“蜂群架构 (Swarm Architecture)”** 的多智能体协作系统（Multi-Agent System）。不同于传统的单体 Agent 或简单的 Chain 模式，我们构建了一个**分工明确、自主协作**的虚拟开发团队。
+**Swarm Agent Framework** 是一个基于 **“蜂群架构”** 的轻量级多智能体协作开发框架。
 
-**核心角色与机制：**
+v0.2 版本（代号：*The Trinity*）针对代码一致性和 Token 消耗进行了重大重构。我们将原来的前后端工兵合并为全栈开发者，引入了“手术刀”式的代码修改能力，并新增了基于 Streamlit 的实时可视化监控面板。
 
-* **🧙‍♂️ 召唤师 (Summoner)**：**绝对核心与项目经理**。负责拆解用户需求，利用有限状态机（FSM）调度合适的专家 Agent，并把控项目进度。它拥有“上帝视角”，但不亲自写代码。
-* **🛠️ 召唤物 (Workers)**：各司其职的专家 Agent。
-* **Structure (架构师)**：负责画图纸，定义文件树与 API。
-* **Kernel (后端工兵)**：负责写逻辑，实现 Python/Node.js 等后端代码。
-* **Surface (前端工兵)**：负责写界面，实现 HTML/CSS/JS。
-* **Audit (验收官)**：负责质检，运行代码并反馈 Bug。
+**核心特性：**
 
-
-* **📋 黑板模式 (Blackboard Pattern)**：所有 Agent 通过一个全局共享的“黑板” (`MissionContext`) 交换信息。架构师画完图纸贴在黑板上，后端工兵看到后直接开工，无需口头转述，极大降低了 Token 消耗和幻觉风险。
-* **📂 强制落地 (File Skills)**：所有生成的代码会被强制写入 `output/` 目录，真正实现从“文本对话”到“可运行项目”的交付。
+* **🧙‍♂️ 角色重组**：确立了 **架构师 (Design)** -> **全栈开发 (Build)** -> **质检官 (Test)** 的铁三角闭环。
+* **📉 降本增效**：Agent 学会了使用 `replace_file_lines` 进行按行修改，不再全量重写文件，Token 消耗降低 90%。
+* **📊 实时监控**：内置 Streamlit 仪表盘，支持 Mermaid 动态拓扑图，实时显示 Agent 思考路径与 Token 计费。
+* **🛠️ 强一致性**：全栈 Developer 独自负责前后端对接，彻底解决变量名不一致（Interface Mismatch）问题。
 
 ---
 
-### 📖 目录 (Table of Contents)
+### 🏛️ 架构设计 (Architecture)
 
-1. [架构设计哲学](https://www.google.com/search?q=%23-%E6%9E%B6%E6%9E%84%E8%AE%BE%E8%AE%A1%E5%93%B2%E5%AD%A6-philosophy)
-2. [核心组件详解](https://www.google.com/search?q=%23-%E6%A0%B8%E5%BF%83%E7%BB%84%E4%BB%B6%E8%AF%A6%E8%A7%A3-components)
-3. [工作流演示](https://www.google.com/search?q=%23-%E5%B7%A5%E4%BD%9C%E6%B5%81%E6%BC%94%E7%A4%BA-workflow)
-4. [安装与运行](https://www.google.com/search?q=%23-%E5%AE%89%E8%A3%85%E4%B8%8E%E8%BF%90%E8%A1%8C-installation)
-5. [项目结构说明](https://www.google.com/search?q=%23-%E9%A1%B9%E7%9B%AE%E7%BB%93%E6%9E%84%E8%AF%B4%E6%98%8E-structure)
-6. [常见问题 (FAQ)](https://www.google.com/search?q=%23-%E5%B8%B8%E8%A7%81%E9%97%AE%E9%A2%98-faq)
+#### 1. 角色分工 (The Roles)
 
----
+| 图标 | 角色名 | 职能描述 | 核心技能 |
+| --- | --- | --- | --- |
+| 🧙‍♂️ | **Summoner** | **项目经理**。维护有限状态机 (FSM)，负责任务分发与进度把控，不亲自写代码。 | 调度 (`dispatch`), 验收 (`mark_complete`) |
+| 📐 | **Architect** | **顶层设计**。负责定义文件树结构、技术选型和 API 接口契约。 | 读写黑板, 列出目录 |
+| 👨‍💻 | **Developer** | **全栈执行**。v0.2 核心角色。负责从后端逻辑到前端 UI 的所有代码实现，确保接口对齐。 | **精准修改 (`replace_lines`)**, 写文件, 联网搜索 |
+| 🕵️‍♂️ | **Inspector** | **质量保证**。负责运行代码、执行测试脚本。拥有“一票否决权”，报错即打回。 | 运行 Shell/Python, 依赖安装 |
 
-### 🧠 架构设计哲学 (Philosophy)
+#### 2. 黑板模式 (The Blackboard)
 
-v0.1 版本名为 **“召唤师与召唤物”**，强调的是 **控制权与执行权的分离**。
+所有 Agent 共享一个内存中的上下文对象 `MissionContext`。
 
-* **去中心化的执行，中心化的调度**：
-Summoner 是唯一的入口，它维护一个状态机（State Machine）。它不干涉具体代码怎么写，但它严格控制“现在该谁上场”。
-* **黑板 > 聊天**：
-传统的 Multi-Agent 容易陷入无限对话循环。我们引入了 **MissionContext (黑板)**。
-* `Structure` 产出 Manifest（设计图）。
-* `Kernel` 产出 Code（代码库）。
-* `Audit` 产出 Logs（验收报告）。
-* Agent 之间 **少说话，多看板**。
-
-
-* **工具即技能 (Skills as Tools)**：
-Agent 的能力被封装在 `skills/` 目录下。无论是写文件、跑 Shell 还是联网搜索，都是一个个可插拔的 Python 函数。
+* **Project Manifest**: 架构师的设计图。
+* **Code Repository**: 仅存储文件路径索引（Token 优化），不再存储全文。
+* **Runtime Logs**: 运行报错与测试结果。
 
 ---
 
-### 🧩 核心组件详解 (Components)
-
-#### 1. The Summoner (控制层)
-
-* **职责**：分析用户 Prompt -> 检查黑板状态 -> 决定派谁干活 -> 验收成果。
-* **特权工具**：`dispatch_mission` (移交指挥棒), `mark_mission_complete` (结束任务)。
-* **状态机逻辑**：
-* 没设计图？ -> 找 Structure。
-* 缺后端？ -> 找 Kernel。
-* 缺前端？ -> 找 Surface。
-* 写完了？ -> 找 Audit。
-
-
-
-#### 2. The Workers (执行层)
-
-* **Structure**: 产出文件目录树，规定文件路径必须在 `output/<项目名>/` 下。
-* **Kernel**: 纯逻辑实现，严禁写 UI 代码。必须读取黑板上的设计图。
-* **Surface**: 纯界面实现，根据后端 API 编写前端逻辑。
-* **Audit**: 唯一的“反思”角色。它不生产代码，而是运行代码、检查完整性，决定是 Pass 还是打回重修。
-
-#### 3. The Blackboard (数据层)
-
-* 位于 `blackboard.py`。
-* 它是内存中的共享数据库，存储 `project_manifest` (架构)、`code_repository` (代码)、`runtime_logs` (日志)。
-* 支持快照 (`get_snapshot`)，方便调试。
-
-#### 4. The Skill System (能力层)
-
-* 位于 `skills/` 目录。
-* **File_Skills**: 也就是“物理手”。强制将所有写操作重定向到 `output/` 目录，防止 Agent 污染项目根目录。
-* **Shell_Skills / Python_Skills**: 赋予 Agent 执行代码、安装依赖的能力。
-* **Web_Skills**: 赋予 Agent 联网解决未知报错的能力。
-
----
-
-### 🎬 工作流演示 (Workflow)
-
-当用户输入：*"写一个贪吃蛇游戏"*
-
-1. **Summoner** 启动，发现黑板是空的。
-* 👉 **Dispatch** -> `Structure`
-
-
-2. **Structure** 上场，定义项目名为 `snake_game`，设计了 `main.py`, `game.py` 等文件结构。
-* 📝 **Write** -> Blackboard (`project_manifest`)
-
-
-3. **Summoner** 重新接管，发现有设计图但没代码。
-* 👉 **Dispatch** -> `Kernel`
-
-
-4. **Kernel** 上场，读取设计图，开始写 `game.py` 的逻辑。
-* 💾 **Write File** -> `output/snake_game/game.py`
-
-
-5. **Summoner** 再次接管，发现代码写完了，但没验收。
-* 👉 **Dispatch** -> `Audit`
-
-
-6. **Audit** 上场，运行代码，发现没报错。
-* ✅ **Update** -> Blackboard (`runtime_logs`: PASSED)
-
-
-7. **Summoner** 看到 PASSED，宣布任务完成。
-
----
-
-### 💻 安装与运行 (Installation)
+### 💻 安装与配置 (Setup)
 
 #### 1. 环境准备
 
-确保已安装 Python 3.10+。
+确保 Python 3.10+ 环境。
 
 ```bash
-# 1. 克隆项目
-git clone <repository_url>
-cd surAgent/experiments
+# 克隆项目（假设位于 experiments 目录）
+cd experiments
 
-# 2. 安装依赖
-pip install langchain langchain-openai duckduckgo-search
+# 安装依赖
+pip install langchain langchain-openai duckduckgo-search streamlit
 
 ```
 
-#### 2. 配置 Key
+#### 2. API Key 配置
 
-在 `config/` 目录下创建 `keys.json` 文件（**注意：此文件已被 .gitignore，严禁上传**）。
+在 `config/` 目录下新建 `keys.json`（已通过 `.gitignore` 忽略）：
 
 ```json
 {
@@ -154,49 +72,83 @@ pip install langchain langchain-openai duckduckgo-search
 
 ```
 
-#### 3. 运行
+---
+
+### 🚀 运行指南 (Usage)
+
+本项目采用 **双进程模式**：一个跑业务，一个跑监控。
+
+#### 步骤 1：启动可视化监控 (Eyes)
+
+在第一个终端窗口中运行：
+
+```bash
+# 使用 python 模块模式启动，避免路径问题
+python -m streamlit run Debug/dashboard.py
+
+```
+
+*浏览器将自动打开，显示“等待主程序启动...”*
+
+#### 步骤 2：启动蜂群主程序 (Brain)
+
+在第二个终端窗口中运行：
 
 ```bash
 python main.py
 
 ```
 
-进入交互模式后，输入你的需求即可。例如：
-`> 写一个基于 Flask 的待办事项管理系统，UI要简洁。`
+#### 步骤 3：下达指令
+
+在主程序终端输入需求，例如：
+
+> “写一个贪吃蛇游戏，要有计分板和暂停功能。”
+
+此时，你可以切回浏览器，观看 Agent 们的 **蛇形交互拓扑图** 和 **实时 Token 消耗**。
 
 ---
 
-### 📂 项目结构说明 (Structure)
+### 📂 项目结构 (Structure)
 
 ```text
-surAgent/
-├── experiments/
-│   ├── main.py              # [入口] 程序启动点，包含主循环
-│   ├── agent_core.py        # [核心] Agent 类定义，Prompt 加载
-│   ├── blackboard.py        # [核心] 黑板数据结构
-│   ├── llm_connection.py    # [底层] LLM 连接器
-│   ├── config/              # [配置] 角色定义、Key、协议
-│   ├── prompts/             # [人设] 各个 Agent 的 System Prompt
-│   ├── skills/              # [技能] 工具函数库 (File, Shell, Web...)
-│   └── output/              # [产出] Agent 生成的代码都会在这里
+experiments/
+├── main.py                # [入口] 核心引擎与主循环
+├── agent_core.py          # [核心] Agent 类与动态 Prompt 加载
+├── blackboard.py          # [数据] 共享黑板 (已瘦身)
+├── llm_connection.py      # [网络] LLM 连接与 Token 埋点
+├── Debug/                 # [监控] 可视化模块
+│   ├── dashboard.py       # Streamlit 前端面板
+│   ├── monitor.py         # 状态记录单例
+│   └── run_state.json     # 运行时产生的临时状态文件
+├── config/
+│   ├── agents_config.json # 角色定义与工具绑定
+│   └── AgentLanguage.json # 通信协议
+├── prompts/               # [人设] 三位一体 Agent 的 Prompt
+│   ├── Architect.md
+│   ├── Developer.md
+│   └── Inspector.md
+├── skills/                # [技能] 工具库
+│   ├── File_Skills.py     # 包含 write_file 和 replace_file_lines
+│   ├── Shell_Skills.py    # 包含防卡死的 run_shell_command
+│   └── ...
+└── output/                # [产出] 所有生成的代码位于此处
 
 ```
 
 ---
 
-### ❓ 常见问题 (FAQ)
+### ⚠️ v0.2 重要更新说明
 
-**Q: 为什么 Agent 有时候会报错 'Worker not found'?**
-A: 这是 Agent 的幻觉。v0.1 版本已在 `main.py` 中增加了容错逻辑，当 Agent 呼叫不存在的队友时，系统会拦截并提示它重试。
+1. **关于 `Developer` 的使用**：
+* Developer 能够使用 `replace_file_lines` 修改特定行号的代码。这要求模型具备较好的指令遵循能力（推荐 GPT-4o-mini 或 DeepSeek-V3）。
 
-**Q: 代码生成在哪里？**
-A: 都在根目录的 `output/` 文件夹下。`File_Skills.py` 做了强制路径重定向，确保不会覆盖你的系统文件。
 
-**Q: 如何添加新的角色？**
+2. **关于 `Inspector` 的防死循环**：
+* Shell 命令增加了 `timeout` 和 `stdin=DEVNULL`，防止因交互式 CLI（如 `pip` 询问 y/n）导致的程序挂起。
+* Inspector 遵循“事不过三”原则，连续报错 3 次会自动将任务标记为 Failed 并打回给 Developer。
 
-1. 在 `prompts/` 下新建 `NewRole.md`。
-2. 在 `config/agents_config.json` 中注册它。
-3. 在 `skills/__init__.py` 中为它分配技能 (`ROLE_SKILLS`)。
+
 
 ---
 

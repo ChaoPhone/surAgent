@@ -6,6 +6,11 @@ from agent_core import DynamicAgent
 from blackboard import MissionContext
 from skills import SKILL_REGISTRY, ROLE_SKILLS # <--- 导入新写的技能库
 
+# 【新增】导入监控
+try:
+    from Debug.monitor import monitor
+except ImportError:
+    monitor = None
 
 # ================= 全局状态 =================
 blackboard = MissionContext()
@@ -174,42 +179,37 @@ def run_subroutine_loop(agent, query, current_depth):
 
     return "Error: Peer request timed out (Max turns reached)."
 
-
 # --- 全自动主循环 (Auto-Pilot Loop) ---
 def run_main_loop(user_goal):
-    # 1. 确保 Summoner 存在
     if "Summoner" not in agent_registry:
-        print("❌ 错误：Agent Registry 中找不到 Summoner！请检查 load_agents 是否成功。")
+        print("❌ 错误：Agent Registry 中找不到 Summoner！")
         return
 
     current_agent = agent_registry["Summoner"]
-
-    # 初始输入是用户的需求
     messages = [HumanMessage(content=f"终极任务目标：{user_goal}\n请检查黑板状态，开始自动推进，直到代码全部写完。")]
 
     print(f"\n🚀 [AUTO-MODE] 任务启动: {user_goal}\n")
 
-    MAX_AUTO_TURNS = 66  # 防止死循环
+    # 【新增】重置监控面板
+    if monitor: monitor.reset()
+
+    MAX_AUTO_TURNS = 66
     turn_count = 0
 
     while turn_count < MAX_AUTO_TURNS:
         turn_count += 1
         print(f"🔄 [Turn {turn_count}/{MAX_AUTO_TURNS}] 主角: {current_agent.name}")
 
+        # 【新增】更新当前主角状态
+        if monitor: monitor.update_state(current_agent.name, action="Thinking...")
+
         # 动态工具列表配置
         if current_agent.name == "Summoner":
-            # Summoner 拥有调度和结束权限
-            # 注意：dispatch_mission 和 mark_mission_complete 必须在 main.py 定义或导入
             tools = [dispatch_mission, read_blackboard, mark_mission_complete]
         else:
-            # 工兵拥有基础工具 + 互调权限 + 自身携带的特殊 Skills
-            # 注意：current_agent.client.tools 包含了 load_agents 时加载的所有工具
-            # 这里我们取并集，确保 main.py 定义的核心工具也在其中
-            # 但为了简化，通常 current_agent.client.tools 已经包含了所有需要的
-            # 这里的 tools 列表是传给 LLM 告诉它"你可以用什么"
             tools = current_agent.client.tools
 
-            # 调用 LLM
+        # 调用 LLM
         response = current_agent.client.get_completion(
             model=current_agent.model,
             messages=[SystemMessage(content=current_agent.get_full_instructions())] + messages,
@@ -218,71 +218,59 @@ def run_main_loop(user_goal):
 
         messages.append(response)
 
-        # 核心逻辑：如果没有工具调用，强制让 Summoner 思考下一步
         if not response.tool_calls:
             print(f"🤖 {current_agent.name} 思考: {response.content}")
             if current_agent.name != "Summoner":
-                # 工兵干完活了，自动切回 Summoner，让它来验收
                 print("   ↩️ 工兵任务结束，控制权交还 Summoner...")
                 current_agent = agent_registry["Summoner"]
-                # 给 Summoner 一个信号，让它继续
                 messages.append(HumanMessage(content="上一个工兵已完成任务。请检查黑板，决定下一步行动。"))
             continue
 
-        # 处理工具调用
         for tool_call in response.tool_calls:
             fn_name = tool_call["name"]
             args = tool_call["args"]
             print(f"⚙️  {current_agent.name} -> {fn_name}")
 
-            # --- 1. 处理任务完成 ---
-            if fn_name == "mark_mission_complete":
-                print("\n🎉🎉🎉 任务全自动完成！ 🎉🎉🎉")
-                print("================ 最终报告 ================")
-                print(args.get('final_report'))
-                # 这里会触发 save_code_to_disk (如果在 mark_mission_complete 函数里写了的话)
-                save_res = mark_mission_complete(**args)
-                print(save_res)
-                print("==========================================")
-                return  # 彻底退出循环
+            # 【新增】记录工具调用
+            if monitor:
+                target = args.get('target_agent') if fn_name in ['dispatch_mission', 'call_peer'] else None
+                monitor.update_state(current_agent.name, action=fn_name, target=target)
 
-            # --- 2. 处理任务分发 (Summoner) ---
+            # --- 1. 任务完成 ---
+            if fn_name == "mark_mission_complete":
+                print("\n🎉🎉🎉 任务全自动完成！")
+                print(args.get('final_report'))
+                mark_mission_complete(**args)
+                return
+
+            # --- 2. 任务分发 ---
             elif fn_name == "dispatch_mission":
-                # 这里的 dispatch_mission 是 main.py 里的函数
                 new_agent = dispatch_mission(**args)
                 if isinstance(new_agent, DynamicAgent):
                     print(f"👉 指挥棒交给 -> {new_agent.name}")
-                    messages.append(
-                        ToolMessage(content=f"Transferred to {new_agent.name}", tool_call_id=tool_call["id"]))
+                    messages.append(ToolMessage(content=f"Transferred to {new_agent.name}", tool_call_id=tool_call["id"]))
                     current_agent = new_agent
                 else:
-                    # 如果 dispatch 返回字符串错误
                     messages.append(ToolMessage(content=str(new_agent), tool_call_id=tool_call["id"]))
 
-
-            # --- 3. 处理 P2P 互调 (增加容错) ---
+            # --- 3. P2P 互调 ---
             elif fn_name == "call_peer":
                 target_name = args.get('target_agent')
-                # ✅ 安全检查：防止 AI 叫错名字 (比如叫 'Worker')
                 if target_name in agent_registry:
+                    # 递归调用逻辑保持不变
                     res = run_subroutine_loop(agent_registry[target_name], args['specific_query'], 1)
                 else:
-                    # 友好的错误提示，让 AI 重试
-                    available_agents = list(agent_registry.keys())
-                    res = f"System Error: Agent '{target_name}' not found. Available agents: {available_agents}"
-
+                    res = f"System Error: Agent '{target_name}' not found."
                 messages.append(ToolMessage(content=str(res), tool_call_id=tool_call["id"]))
 
-            # --- 4. 处理其他通用工具 (黑板 + Skills) ---
+            # --- 4. 通用工具 ---
             else:
-                # 查找顺序：先找 globals() (main.py定义的)，再找 SKILL_REGISTRY (技能库)
                 if fn_name in globals():
                     res = globals()[fn_name](**args)
                 elif fn_name in SKILL_REGISTRY:
                     res = SKILL_REGISTRY[fn_name](**args)
                 else:
-                    res = f"System Error: Tool '{fn_name}' execution failed. Function not found in registry."
-
+                    res = f"System Error: Tool '{fn_name}' not found."
                 messages.append(ToolMessage(content=str(res), tool_call_id=tool_call["id"]))
 
     print("⚠️ 警告：达到最大自动运行轮数，强制停止。")
