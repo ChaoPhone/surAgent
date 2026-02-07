@@ -39,19 +39,105 @@ def write_file(file_path: str, content: str):
         return f"Error writing file: {str(e)}"
 
 
-def read_file(file_path: str):
+def read_file(file_path: str, focus_question: str = None):
     """
     读取文件内容。
     Args:
         file_path: 相对路径
+        focus_question: [可选] 如果文件很大，请提供你关注的具体问题（如“它是如何处理碰撞的？”）。
+                        系统将利用语义裁剪技术，只为你保留相关的代码行，从而节省 Token。
     """
+    print(f"DEBUG: read_file called for {file_path} with focus_question='{focus_question}'")
     if not os.path.exists(file_path):
         return f"Error: File {file_path} not found."
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
-            return f.read()
+            content = f.read()
+
+        # 如果提供了关注点，且内容较长，则进行裁剪
+        if focus_question and len(content) > 1200: # 只要超过 1200 字符就尝试裁剪，提高精准度
+            return apply_context_pruning(content, focus_question)
+        
+        # 【强化拦截】强制要求 Agent 必须思考“我要读什么”
+        if not focus_question and len(content) > 2000:
+            msg = (
+                f"⚠️ 拦截警告：文件 {file_path} 内容较多（约 {len(content)} 字符）。\n"
+                f"为了避免过多的无关信息干扰你的判断并节省 Token 成本，系统禁止全量读取。\n"
+                f"请重新调用 read_file，并在 focus_question 参数中明确说明你当前想要寻找的逻辑或变量名。\n"
+                f"例如：'我想查看 Snake 类的构造函数' 或 '查找处理食物碰撞的逻辑'。"
+            )
+            print(f"DEBUG: Triggered INTERCEPTION for {file_path}")
+            return msg
+
+        return content
     except Exception as e:
         return f"Error reading file: {str(e)}"
+
+
+def apply_context_pruning(content: str, query: str):
+    """
+    [SWE-Pruner 核心逻辑]
+    利用轻量级 LLM 模拟论文中的 Neural Skimmer 进行行级裁剪。
+    """
+    from llm_connection import LLMClient
+    from langchain_core.messages import SystemMessage, HumanMessage
+    
+    # 1. 准备轻量级客户端 (建议使用最便宜的模型)
+    client = LLMClient(provider="openrouter") # 或者你默认的 provider
+    
+    # 2. 构建裁剪指令
+    lines = content.splitlines()
+    indexed_content = "\n".join([f"{i+1}: {line}" for i, line in enumerate(lines)])
+    
+    prune_prompt = f"""
+你是一个代码分析专家。你的任务是从下面的代码中提取与用户问题最相关的行号。
+
+【用户问题】：{query}
+
+【代码内容】：
+{indexed_content}
+
+【要求】：
+1. 只输出相关的行号，用逗号分隔，如：1,2,3,10,11,12
+2. 如果某一部分代码（如整个函数）都相关，请列出该函数的所有行号。
+3. 不要输出任何文字解释，只输出数字和逗号。
+"""
+    
+    try:
+        response = client.get_completion(
+            model="gpt-4o-mini", # 强制使用小模型以保证速度和成本
+            messages=[HumanMessage(content=prune_prompt)]
+        )
+        
+        # 3. 解析返回的行号
+        target_line_nums = []
+        import re
+        nums = re.findall(r'\d+', response.content)
+        target_line_nums = [int(n) for n in nums]
+        
+        if not target_line_nums:
+            return content[:1000] + "\n... (裁剪失败，返回前 1000 字符) ..."
+
+        # 4. 扩充上下文 (保留关键行及其前后各 2 行，避免逻辑断层)
+        final_indices = set()
+        for n in target_line_nums:
+            for i in range(max(1, n-2), min(len(lines), n+2) + 1):
+                final_indices.add(i-1)
+        
+        # 5. 组装结果
+        sorted_indices = sorted(list(final_indices))
+        pruned_lines = []
+        last_idx = -1
+        for idx in sorted_indices:
+            if last_idx != -1 and idx > last_idx + 1:
+                pruned_lines.append(f"\n... [已省略 {idx - last_idx - 1} 行] ...\n")
+            pruned_lines.append(f"{idx+1}: {lines[idx]}")
+            last_idx = idx
+            
+        return "\n".join(pruned_lines)
+
+    except Exception as e:
+        return f"Error during pruning: {str(e)}\n\nOriginal Content (Partial):\n{content[:1000]}"
 
 
 def list_directory(dir_path: str = "."):
