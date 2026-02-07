@@ -193,7 +193,7 @@ def run_main_loop(user_goal):
     # 【新增】重置监控面板
     if monitor: monitor.reset()
 
-    MAX_AUTO_TURNS = 66
+    MAX_AUTO_TURNS = 256
     turn_count = 0
 
     while turn_count < MAX_AUTO_TURNS:
