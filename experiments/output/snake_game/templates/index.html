@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <title>贪吃蛇游戏</title>
+</head>
+<body>
+    <div class="game-container">
+        <h1>贪吃蛇游戏</h1>
+        
+        <div class="game-info">
+            <div id="score" class="score">分数: 0</div>
+            <div id="highScore" class="score">最高分: 0</div>
+            <div id="gameStatus" class="status">游戏状态: 等待开始</div>
+        </div>
+        
+        <div class="game-controls">
+            <button id="startBtn" class="btn btn-start">开始游戏</button>
+            <button id="pauseBtn" class="btn btn-pause" disabled>暂停游戏</button>
+            <button id="resetBtn" class="btn btn-reset" disabled>重置游戏</button>
+        </div>
+        
+        <div class="game-instructions">
+            <p>使用键盘方向键控制蛇的移动：↑ ↓ ← →</p>
+            <p>吃到红色食物可以增加分数，撞到墙壁或自身游戏结束</p>
+        </div>
+        
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+    </div>
+    
+    <script src="/static/js/game.js"></script>
+</body>
+</html>
