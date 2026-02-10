@@ -1,43 +1,94 @@
 import os
+import ast
+import json
+from blackboard import project_context
 
 
-def write_file(file_path: str, content: str):
+
+def validate_syntax(file_path: str, content: str) -> str:
     """
-    将内容写入文件。
-    【强制约束】所有文件将被强制保存到根目录的 output/ 文件夹中。
+    [内部函数] 强制语法校验
+    返回 None 表示通过，返回 字符串 表示错误信息
+    """
+    # 1. Python 语法检查
+    if file_path.endswith(".py"):
+        try:
+            ast.parse(content)
+            return None  # ✅ Pass
+        except SyntaxError as e:
+            return f"❌ Python Syntax Error on line {e.lineno}: {e.msg}. YOU MUST FIX THIS."
+        except Exception as e:
+            return f"❌ Python Parse Error: {str(e)}"
+
+    # 2. JSON 格式检查
+    elif file_path.endswith(".json"):
+        try:
+            json.loads(content)
+            return None  # ✅ Pass
+        except json.JSONDecodeError as e:
+            return f"❌ Invalid JSON format: {e.msg}. YOU MUST FIX THIS."
+
+    # 3. HTML 基础结构检查 (防止写出一半的代码)
+    elif file_path.endswith(".html"):
+        if "<html" not in content.lower() or "</html>" not in content.lower():
+            return "⚠️ Warning: HTML file seems incomplete (missing <html> tags). Please verify."
+        return None
+
+    return None
+
+
+def write_file(file_path: str, content: str, description: str = "Update code"):
+    """
+    将内容写入文件，并自动进行语法自检。如果语法错误，写入会成功但会返回错误警告。
     """
     try:
-        # 1. 路径清洗：移除开头的 ./ 或 /
+        # 1. 路径清洗
         clean_path = file_path.lstrip("./").lstrip("/")
-
-        # 2. 【核心修改】强制添加 output 前缀
-        # 如果 Agent 已经很聪明地写了 output/project_x/main.py，我们就不加了
-        # 如果 Agent 只写了 main.py，我们就强制变成 output/main.py (或者建议在Prompt里让Agent生成项目名)
-
         if not clean_path.startswith("output"):
-            # 这里的策略是：强制放入 output 目录
-            # 注意：为了实现 output/子项目名称/代码，我们需要 Agent 在 file_path 里提供子项目名称
-            # 例如 Agent 传入 "wolf_game/app.py"，我们变成 "output/wolf_game/app.py"
             target_path = os.path.join("output", clean_path)
         else:
             target_path = clean_path
 
-        # 3. 安全检查
+        # 安全检查
         if ".." in target_path:
             return "Error: Access to parent directories is restricted."
 
-        # 4. 自动创建父目录
         parent_dir = os.path.dirname(target_path)
         if parent_dir and not os.path.exists(parent_dir):
             os.makedirs(parent_dir, exist_ok=True)
 
+        # 2. 写入磁盘 (我们先写盘，方便后续读取分析)
         with open(target_path, 'w', encoding='utf-8') as f:
             f.write(content)
 
-        return f"Success: File written to {target_path}"
+        # 3. [新增] 强制语法自检 (Self-Check)
+        # 这一步是关键：如果代码写烂了，工具直接报错，逼Agent立刻重写
+        syntax_error = validate_syntax(target_path, content)
+
+        status_msg = ""
+        structure_data = {}
+
+        if syntax_error:
+            # 如果有语法错误，虽然文件写了，但我们要给 Agent 报红灯
+            status_msg = f"⚠️ WROTE FILE BUT FAILED SYNTAX CHECK:\n{syntax_error}\n\n👉 ACTION REQUIRED: Rewrite the file immediately to fix the syntax!"
+            # 在黑板上也标记为错误
+            structure_data = {"error": syntax_error}
+        else:
+            # 语法正确，正常提取结构
+            status_msg = f"✅ Success: File written to {target_path} (Syntax Valid)."
+            if target_path.endswith(".py"):
+                from .Python_Skills import analyze_code_structure
+                structure_data = analyze_code_structure(content)
+            else:
+                structure_data = "Non-Python file, syntax OK."
+
+        # 4. 更新黑板
+        project_context.register_file(clean_path, description, structure_data)
+
+        return status_msg
+
     except Exception as e:
         return f"Error writing file: {str(e)}"
-
 
 def read_file(file_path: str, focus_question: str = None):
     """

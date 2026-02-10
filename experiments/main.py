@@ -3,8 +3,10 @@ import json
 import sys
 from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from agent_core import DynamicAgent
-from blackboard import MissionContext
-from skills import SKILL_REGISTRY, ROLE_SKILLS # <--- 导入新写的技能库
+from blackboard import project_context as blackboard
+from skills import SKILL_REGISTRY
+import time
+from validator import check_code_blocks  # 确保 validator.py 在同级目录
 
 # 【新增】导入监控
 try:
@@ -13,139 +15,97 @@ except ImportError:
     monitor = None
 
 # ================= 全局状态 =================
-blackboard = MissionContext()
+
 agent_registry = {}
 
 
 # ================= 工具定义 =================
 
-# 1. 黑板工具
 def update_blackboard(key: str, content: str):
-    """更新项目黑板上的共享信息。keys: project_manifest, api_schema, runtime_logs, code_repository"""
     return blackboard.write(key, content)
 
 
 def read_blackboard(key: str):
-    """读取黑板信息"""
     return blackboard.read(key)
 
 
-# 2. 召唤师专用工具 (Handoff)
 def dispatch_mission(target_agent: str, task_description: str, prompt_patch: str = ""):
-    """[Summoner Only] 将任务移交给专家 Agent。可附带 prompt_patch (热更新指令) 来微调专家行为。"""
     if target_agent not in agent_registry:
         return f"Error: Agent {target_agent} not found."
-
-
-    # 应用热更新
     worker = agent_registry[target_agent]
     worker.apply_patch(prompt_patch)
-
-    # 返回 Agent 对象，触发 Main Loop 切换
     return worker
 
 
-# 3. Worker 互调工具 (Subroutine) - 核心难点
-# 我们需要一个全局引擎引用来执行递归调用，为了简化，我们在这里使用闭包或全局引用
 def call_peer(target_agent: str, specific_query: str):
-    """[Worker Only] 打电话给另一个 Agent 寻求协助。这是同步调用，你会等待对方返回结果。"""
     if target_agent not in agent_registry:
         return f"Error: Peer {target_agent} not found."
-
     print(f"\n   📞 [Call Peer] 正在呼叫 {target_agent}...")
+    return run_subroutine_loop(agent_registry[target_agent], specific_query, current_depth=1)
 
-    # 这里通过 Engine 的类方法来执行子程序
-    # 为了代码解耦，我们假设 Engine 是单例或通过外部调用
-    # 在这个简单实现中，我们直接调用 run_subroutine_loop
-    return run_subroutine_loop(agent_registry[target_agent], specific_query, current_depth=1)  # 深度起始为1
 
-# 4. 全自动结束信号
 def mark_mission_complete(final_report: str):
-    """[Summoner Only] 当所有代码都编写完成，且项目已具备交付标准时，调用此工具结束自动化流程。"""
     return f"MISSION_COMPLETE_SIGNAL: {final_report}"
+
 
 # ================= 引擎逻辑 =================
 
-# main.py 中替换这个函数
-
 def load_agents():
-    # 1. 【修复红线】真实读取配置文件
     path = os.path.join(os.path.dirname(__file__), "config", "agents_config.json")
-
     if not os.path.exists(path):
         print(f"❌ 错误：找不到配置文件 {path}")
         return
-
     try:
         with open(path, 'r', encoding='utf-8') as f:
-            config = json.load(f)  # <--- 这里定义了 config 变量
+            config = json.load(f)
     except Exception as e:
         print(f"❌ 配置文件读取失败: {e}")
         return
 
     print(f"🔍 发现配置文件，包含 {len(config)} 个角色定义。")
 
-    # 2. 遍历配置
     for cfg in config:
-        # A. 基础工具 (所有 Agent 都有的)
         base_tools = [update_blackboard, read_blackboard, call_peer]
-
-        # B. 加载 JSON 配置的额外工具
         json_tools = []
         if "tools" in cfg:
             for t_name in cfg["tools"]:
-                # 优先从 skills 库里找
                 if t_name in SKILL_REGISTRY:
                     json_tools.append(SKILL_REGISTRY[t_name])
-                # 也可以兼容 main.py 里定义的本地工具 (如 dispatch_mission)
                 elif t_name in globals():
                     json_tools.append(globals()[t_name])
                 else:
-                    # 如果工具既不在 skills 也不在 main.py，说明配置写错了
                     print(f"⚠️ 警告: Agent [{cfg['name']}] 配置了未知工具 '{t_name}'")
+        final_tools = list(set(base_tools + json_tools))
 
-        # C. 加载角色专属工具 (从 ROLE_SKILLS 查找)
-        role_tools = ROLE_SKILLS.get(cfg['name'], [])
-
-        # D. 合并所有工具 (去重)
-        final_tools = list(set(base_tools + json_tools + role_tools))
-
-        # 3. 实例化 Agent
         new_agent = DynamicAgent(
             name=cfg['name'],
             model=cfg['model'],
             provider=cfg['provider'],
             base_prompt_file=cfg['prompt_file']
         )
-
-        # 注入工具
         new_agent.client.tools = final_tools
-
-        # 注册到全局字典
         agent_registry[new_agent.name] = new_agent
         print(f"   ✅ 加载角色: {new_agent.name} (工具数: {len(final_tools)})")
-
     print(f"✅ 初始化完成，共加载 {len(agent_registry)} 个 Agent")
 
-# --- 递归子程序循环 (Subroutine Loop) ---
-def run_subroutine_loop(agent, query, current_depth):
-    # 盲区五：最小信息原则，只传 Query，不传上文 History
-    messages = [HumanMessage(content=query)]
 
+# --- 递归子程序循环 ---
+def run_subroutine_loop(agent, query, current_depth):
+    # 这里也可以加上与 run_main_loop 相同的拦截逻辑，篇幅原因简化
+    # 建议生产环境将拦截逻辑封装为函数复用
+    messages = [HumanMessage(content=query)]
     MAX_DEPTH = 3
     MAX_TURNS = 7
 
     if current_depth > MAX_DEPTH:
-        return "System Error: Max call depth exceeded. Please return control to Summoner."
+        return "System Error: Max call depth exceeded."
 
     print(f"   Now Running Subroutine: {agent.name} (Depth: {current_depth})")
-
-    tools = [update_blackboard, read_blackboard, call_peer]  # Worker 只能调 Peer，不能 Dispatch
+    tools = [update_blackboard, read_blackboard, call_peer]
 
     for _ in range(MAX_TURNS):
-        # 动态合成 Prompt
         sys_prompt = agent.get_full_instructions()
-        sys_prompt += f"\nNote: You are in a Subroutine Call (Depth {current_depth}). Answer the user query directly."
+        sys_prompt += f"\nNote: You are in a Subroutine Call (Depth {current_depth}). Answer directly."
 
         response = agent.client.get_completion(
             model=agent.model,
@@ -153,44 +113,42 @@ def run_subroutine_loop(agent, query, current_depth):
             tools=tools
         )
 
+        if isinstance(response, str):
+            print(f"❌ Subroutine Error: {response}")
+            break
+
         messages.append(response)
 
         if response.tool_calls:
             for tool_call in response.tool_calls:
                 fn_name = tool_call["name"]
                 args = tool_call["args"]
-                print(f"      ⚙️ {agent.name} (Depth {current_depth}) -> {fn_name}")
-
+                print(f"      ⚙️ {agent.name} -> {fn_name}")
                 result = "Error"
                 if fn_name == "update_blackboard":
                     result = update_blackboard(**args)
                 elif fn_name == "read_blackboard":
                     result = read_blackboard(**args)
                 elif fn_name == "call_peer":
-                    # 递归调用，深度 +1
                     result = run_subroutine_loop(agent_registry[args['target_agent']], args['specific_query'],
                                                  current_depth + 1)
-
                 messages.append(ToolMessage(content=str(result), tool_call_id=tool_call["id"]))
         else:
-            # 没有工具调用，说明输出了最终回答
-            print(f"   ✅ {agent.name} Subroutine Finished.\n")
             return response.content
 
-    return "Error: Peer request timed out (Max turns reached)."
+    return "Error: Timeout."
 
-# --- 全自动主循环 (Auto-Pilot Loop) ---
+
+# --- 全自动主循环 (核心修改区域) ---
 def run_main_loop(user_goal):
     if "Summoner" not in agent_registry:
-        print("❌ 错误：Agent Registry 中找不到 Summoner！")
+        print("❌ 错误：Summoner 未找到")
         return
 
     current_agent = agent_registry["Summoner"]
-    messages = [HumanMessage(content=f"终极任务目标：{user_goal}\n请检查黑板状态，开始自动推进，直到代码全部写完。")]
+    messages = [HumanMessage(content=f"终极任务目标：{user_goal}\n请检查黑板状态，开始自动推进。")]
 
     print(f"\n🚀 [AUTO-MODE] 任务启动: {user_goal}\n")
-
-    # 【新增】重置监控面板
     if monitor: monitor.reset()
 
     MAX_AUTO_TURNS = 256
@@ -200,12 +158,17 @@ def run_main_loop(user_goal):
         turn_count += 1
         print(f"🔄 [Turn {turn_count}/{MAX_AUTO_TURNS}] 主角: {current_agent.name}")
 
-        # 【新增】更新当前主角状态
         if monitor: monitor.update_state(current_agent.name, action="Thinking...")
 
-        # 动态工具列表配置
+        # 动态工具注入 (DeepSeek V3 修复)
         if current_agent.name == "Summoner":
             tools = [dispatch_mission, read_blackboard, mark_mission_complete]
+            seen_tools = {t.__name__ for t in tools}
+            for agent in agent_registry.values():
+                for t in agent.client.tools:
+                    if t.__name__ not in seen_tools:
+                        tools.append(t)
+                        seen_tools.add(t.__name__)
         else:
             tools = current_agent.client.tools
 
@@ -216,54 +179,108 @@ def run_main_loop(user_goal):
             tools=tools
         )
 
+        # =========== 🛡️ 拦截器 1: API 级错误熔断 ===========
+        if isinstance(response, str):
+            error_msg = response
+            print(f"\n🚨 API调用失败: {error_msg}")
+            print("   🛡️ 策略: 冷却 5秒 -> 重启 Summoner 接管...")
+            time.sleep(5)
+            current_agent = agent_registry["Summoner"]
+            messages.append(HumanMessage(
+                content=f"SYSTEM ALERT: API Error detected ('{error_msg}'). Control returned to Summoner."))
+            continue
+
+        # =========== 🛡️ 拦截器 2: 无效工具调用 (核心修复: 解决 JSON 逃逸问题) ===========
+        # 如果 JSON 格式烂了，LangChain 会生成 invalid_tool_calls。
+        # 此时绝对不能把 response 存入历史，否则历史就脏了 (Dangling Tool Call)。
+        if hasattr(response, "invalid_tool_calls") and response.invalid_tool_calls:
+            print(f"🛑 [INTERCEPT] 拦截到无效工具调用 (JSON Error)！")
+            error_details = response.invalid_tool_calls[0].get('error', 'Unknown Error')
+
+            # 策略：不保存本次回答，直接伪造一条 System Error 逼迫 Agent 重试
+            reject_msg = (
+                f"SYSTEM REJECTION: You attempted to call a tool, but the JSON format was invalid (JSONDecodeError).\n"
+                f"Error Details: {error_details}\n"
+                f"CRITICAL: If you are writing code, ensure all quotes and special characters inside strings are properly escaped.\n"
+                f"Action: Please try again with valid JSON."
+            )
+            messages.append(HumanMessage(content=reject_msg))
+            continue  # 跳过本轮，强迫重试
+
+        # =========== 🛡️ 拦截器 3: 幽灵工具清洗 (双重保险) ===========
+        # 如果没有解析出工具，但 raw data 里有残留，手动删除
+        if not response.tool_calls and response.additional_kwargs.get("tool_calls"):
+            print("👻 清洗幽灵工具残留...")
+            del response.additional_kwargs["tool_calls"]
+
+        # =========== 🛡️ 拦截器 4: 输出内容语法质检 (Validator) ===========
+        # 只有当 Agent 试图输出文本（而非调工具）时检查
+        if not response.tool_calls and response.content and len(response.content) > 10:
+            syntax_error = check_code_blocks(response.content)
+            if syntax_error:
+                print(f"🛑 [INTERCEPT] 代码语法检查未通过！")
+                messages.append(HumanMessage(content=
+                                             f"SYSTEM REJECTION: Your output code contains syntax errors. Do not output invalid code.\n"
+                                             f"Errors:\n{syntax_error}\n"
+                                             f"Action: Fix the code and output again."
+                                             ))
+                continue
+
+        # =========== 🛡️ 拦截器 5: 上下文瘦身 ===========
+        if response.tool_calls:
+            for tool_call in response.tool_calls:
+                args = tool_call.get("args", {})
+                if isinstance(args, dict) and "content" in args and isinstance(args["content"], str):
+                    if len(args["content"]) > 200:
+                        # 修改引用，折叠历史记录中的长文本
+                        args["content"] = f"... (Content omitted, length: {len(args['content'])} chars) ..."
+
+        # --- 如果通过了所有拦截，才允许存入历史 ---
         messages.append(response)
 
+        # --- 处理文本回复 ---
         if not response.tool_calls:
             print(f"🤖 {current_agent.name} 思考: {response.content}")
             if current_agent.name != "Summoner":
                 print("   ↩️ 工兵任务结束，控制权交还 Summoner...")
                 current_agent = agent_registry["Summoner"]
-                messages.append(HumanMessage(content="上一个工兵已完成任务。请检查黑板，决定下一步行动。"))
+                messages.append(HumanMessage(content="Worker task completed. Check Blackboard."))
             continue
 
+        # --- 处理工具调用 ---
         for tool_call in response.tool_calls:
             fn_name = tool_call["name"]
             args = tool_call["args"]
             print(f"⚙️  {current_agent.name} -> {fn_name}")
 
-            # 【新增】记录工具调用
-            if monitor:
-                target = args.get('target_agent') if fn_name in ['dispatch_mission', 'call_peer'] else None
-                monitor.update_state(current_agent.name, action=fn_name, target=target)
-
-            # --- 1. 任务完成 ---
+            # 1. 任务完成
             if fn_name == "mark_mission_complete":
                 print("\n🎉🎉🎉 任务全自动完成！")
                 print(args.get('final_report'))
                 mark_mission_complete(**args)
                 return
 
-            # --- 2. 任务分发 ---
+            # 2. 任务分发
             elif fn_name == "dispatch_mission":
                 new_agent = dispatch_mission(**args)
                 if isinstance(new_agent, DynamicAgent):
                     print(f"👉 指挥棒交给 -> {new_agent.name}")
-                    messages.append(ToolMessage(content=f"Transferred to {new_agent.name}", tool_call_id=tool_call["id"]))
+                    messages.append(
+                        ToolMessage(content=f"Transferred to {new_agent.name}", tool_call_id=tool_call["id"]))
                     current_agent = new_agent
                 else:
                     messages.append(ToolMessage(content=str(new_agent), tool_call_id=tool_call["id"]))
 
-            # --- 3. P2P 互调 ---
+            # 3. P2P 互调
             elif fn_name == "call_peer":
                 target_name = args.get('target_agent')
                 if target_name in agent_registry:
-                    # 递归调用逻辑保持不变
                     res = run_subroutine_loop(agent_registry[target_name], args['specific_query'], 1)
                 else:
                     res = f"System Error: Agent '{target_name}' not found."
                 messages.append(ToolMessage(content=str(res), tool_call_id=tool_call["id"]))
 
-            # --- 4. 通用工具 ---
+            # 4. 通用工具
             else:
                 if fn_name in globals():
                     res = globals()[fn_name](**args)
@@ -275,43 +292,18 @@ def run_main_loop(user_goal):
 
     print("⚠️ 警告：达到最大自动运行轮数，强制停止。")
 
-# ================= 6. 程序入口 (Interactive Mode) =================
 
 if __name__ == "__main__":
-    # 1. 初始化所有 Agent
     print("🔄 初始化蜂群系统...")
     load_agents()
-    print("✅ 系统就绪。黑板 (Blackboard) 已重置。")
-    print("--------------------------------------------------")
-    print("💡 提示：输入 'exit', 'quit' 或 'q' 退出程序。")
-    print("--------------------------------------------------")
-
-    # 2. 进入交互循环
+    print("✅ 系统就绪。")
     while True:
         try:
-            # 获取用户输入
-            user_input = input("\n🙋 召唤师指令 (User): ").strip()
-
-            # 处理退出
-            if user_input.lower() in ['exit', 'quit', 'q', '结束', '退出']:
-                print("\n👋 蜂群已解散。再见！")
-                break
-
-            # 处理空输入
-            if not user_input:
-                continue
-
-            # 3. 运行主循环 (传入用户指令)
-            # 注意：目前的 run_main_loop 是单次任务制的。
-            # 如果你想让 Summoner 记住上一轮对话，需要把 messages 提到 while 外面，
-            # 但蜂群架构通常建议每次 Task 独立，状态通过 Blackboard 传递。
+            user_input = input("\n🙋 召唤师指令: ").strip()
+            if user_input.lower() in ['q', 'exit']: break
+            if not user_input: continue
             run_main_loop(user_input)
-
         except KeyboardInterrupt:
-            # 捕获 Ctrl+C
-            print("\n\n👋 强制终止。再见！")
             sys.exit(0)
         except Exception as e:
-            print(f"\n❌ 发生未知错误: {e}")
-            # 不退出循环，允许用户重试
-            continue
+            print(f"Error: {e}")

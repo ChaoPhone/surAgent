@@ -1,4 +1,4 @@
-# **🐝 surAgent 介绍【v0.4.1The Pruner】**
+# **🐝 surAgent 介绍【v0.4.2】**
 
 ### **📖 项目简介 (Introduction)**
 
@@ -35,7 +35,7 @@ pip install langchain langchain-openai duckduckgo-search streamlit tiktoken
 本项目采用 **双进程模式**，请在两个终端分别运行：
 
 1. **启动监控 (Eyes)**：  
-   python \-m streamlit run Debug/dashboard.py
+   python -m streamlit run Debug/dashboard.py
 
    *浏览器将自动打开，显示 Swarm Dashboard。*  
 2. **启动主程序 (Brain)**：  
@@ -47,11 +47,12 @@ pip install langchain langchain-openai duckduckgo-search streamlit tiktoken
 
 ### **📂 项目结构 (Structure)**
 
-experiments/  
-├── main.py                \# \[入口\] 核心引擎与主循环  
-├── agent\_core.py          \# \[核心\] Agent 类与动态 Prompt 加载  
-├── blackboard.py          \# \[数据\] 共享黑板 (Context)  
+experiments/   
+├── main.py                 	# \[入口\] 核心引擎与主循环  
+├── agent\_core.py           \# \[核心\] Agent 类与动态 Prompt 加载  
+├── blackboard.py           \# \[数据\] 共享黑板 (Context)  
 ├── llm\_connection.py      \# \[网络\] LLM 连接与 Token 埋点  
+├── validator.py 				#语法校验中间件 (AST/JSON检查)
 ├── Debug/                 \# \[监控\] 可视化模块 (Streamlit)  
 ├── config/                \# \[配置\] 角色定义与通信协议  
 ├── prompts/               \# \[人设\] Agent Prompt (含 CoT 指令)  
@@ -62,7 +63,19 @@ experiments/
 
 ### **📅 版本演进 (Changelog)**
 
-#### **v0.4.1: The Pruner / 剪枝者 (Current)**
+#### **v0.4.2: The Interceptor / 拦截者 (Current)**
+
+_构建了三道防线，彻底解决 "JSON 逃逸" 与 "语法错误" 导致的系统崩溃。_
+
+* **🛡️ 中间件拦截 (Middleware Guardrails)**：在 `main.py` 层面植入 `validator.py`。Agent 输出的代码块（Python/JSON/HTML）若存在语法错误，会被强制拦截并打回重写，Summoner 对此无感知。
+
+* **🧹 上下文清洗 (Context Sanitization)**：自动折叠历史记录中 `write_file` 的巨型参数，彻底根除因 HTML/JS 特殊字符未转义导致的 `JSONDecodeError` 及 400 死循环。
+
+* **⚡️ 强制自检 (Tool-Level QA)**：`write_file` 工具内置 AST 语法检查。写入烂代码会返回警告而非成功，迫使 Agent 自主进入修复循环。
+
+* **🔧 DeepSeek 兼容性修复**：修复了 DeepSeek V3 对工具调用历史严格校验导致的 400 错误（Shadow Tool Injection）。
+
+#### **v0.4.1: The Pruner / 剪枝者 **
 
 *针对 Coding Agent 的上下文 Token 消耗痛点进行的革命性升级。*
 

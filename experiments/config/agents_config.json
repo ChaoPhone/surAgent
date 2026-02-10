@@ -8,23 +8,23 @@
   },
   {
     "name": "Architect",
-    "model": "openai/gpt-4o-mini",
-    "provider": "openrouter",
+    "model": "deepseek-chat",
+    "provider": "deepseek",
     "prompt_file": "Architect.md",
-    "tools": ["list_directory", "read_file", "write_file", "update_blackboard", "read_blackboard", "call_peer"]
+    "tools": ["list_directory", "read_file", "write_file", "update_blackboard", "read_blackboard", "call_peer","analyze_code_structure", "web_search"]
   },
   {
     "name": "Developer",
-    "model": "openai/gpt-4o-mini",
-    "provider": "openrouter",
+    "model": "deepseek-chat",
+    "provider": "deepseek",
     "prompt_file": "Developer.md",
-    "tools": ["write_file", "read_file", "run_shell_command", "run_python_code", "update_blackboard", "read_blackboard", "call_peer", "web_search"]
+    "tools": ["list_directory","write_file", "read_file", "run_shell_command", "replace_file_lines","analyze_code_structure", "update_blackboard", "read_blackboard", "call_peer"]
   },
   {
     "name": "Inspector",
-    "model": "openai/gpt-4o-mini",
-    "provider": "openrouter",
+    "model": "deepseek-chat",
+    "provider": "deepseek",
     "prompt_file": "Inspector.md",
-    "tools": ["read_file", "run_shell_command", "run_python_code", "update_blackboard", "read_blackboard", "call_peer"]
+    "tools": ["read_file", "run_shell_command", "run_python_code", "run_shell_command", "update_blackboard", "read_blackboard", "call_peer"]
   }
 ]

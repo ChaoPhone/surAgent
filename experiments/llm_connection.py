@@ -36,7 +36,7 @@ class LLMClient:
                 model=model,
                 openai_api_key=self.api_key,
                 openai_api_base=self.base_url,
-                temperature=0.1
+                temperature=0.2
             )
 
             # 执行调用
