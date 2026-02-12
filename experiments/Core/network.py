@@ -1,9 +1,10 @@
 import os
-import json
 import sys
+import json
+
 from langchain_openai import ChatOpenAI
 
-# 【新增】尝试导入监控模块
+# 尝试导入监控模块
 try:
     from Debug.monitor import monitor
 except ImportError:
@@ -13,7 +14,8 @@ except ImportError:
 class LLMClient:
     def __init__(self, provider="openrouter"):
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        key_path = os.path.join(base_dir, "config", "keys.json")
+        # 修正路径：从 Core/ 回退到根目录找 config
+        key_path = os.path.join(base_dir, "..", "config", "keys.json")
 
         try:
             with open(key_path, 'r', encoding='utf-8') as f:
@@ -58,3 +60,22 @@ class LLMClient:
 
         except Exception as e:
             return f"System Error: LLM 调用失败 - {str(e)}"
+
+    def get_structured_completion(self, model, messages, response_schema):
+        """专门用于结构化输出（强制返回 JSON 格式的对象）"""
+        try:
+            llm = ChatOpenAI(
+                model=model,
+                openai_api_key=self.api_key,
+                openai_api_base=self.base_url,
+                temperature=0.0  # 强制为 0，保证提取的稳定性
+            )
+            
+            # 绑定 Pydantic Schema，强制按结构输出
+            structured_llm = llm.with_structured_output(response_schema)
+            
+            response = structured_llm.invoke(messages)
+            return response
+            
+        except Exception as e:
+            return f"System Error: 结构化 LLM 调用失败 - {str(e)}"

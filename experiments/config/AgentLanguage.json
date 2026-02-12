@@ -1,8 +1,6 @@
 {
   "communication_protocol": {
-    "max_p2p_turns": 7,
-    "max_call_depth": 3,
-    "instruction": "Worker之间协作必须使用 `call_peer` 工具。若 7 轮未解决，必须停止并向调用者报错。"
+    "instruction": "1. 🔴 严禁呼叫同事或外包！所有任务必须由你亲自、独立调用工具完成。2. 任务完成后，如果你有 `update_blackboard` 工具，请更新黑板；如果你没有，请直接回复一句简短的文本（如'任务已完成'）将控制权交还给 Summoner。3. 谁接到了代码任务，谁就必须亲自调用 `write_file` 落盘，绝不允许推诿！"
   },
   "blackboard_keys": {
     "project_manifest": "Markdown格式的项目顶层设计",

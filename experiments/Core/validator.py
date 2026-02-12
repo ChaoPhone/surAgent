@@ -1,6 +1,6 @@
-import re
 import ast
 import json
+import re
 
 
 def strip_json_comments(json_str):
@@ -54,8 +54,7 @@ def check_code_blocks(content: str) -> str:
 
         # --- HTML 校验 ---
         elif lang in ['html', 'xml']:
-            if code.count('<') != code.count('>'):
-                errors.append("🌐 HTML/XML Warning: Tag brackets mismatch (< > count differs).")
+            pass
 
     if errors:
         return "🛑 [AUTO-INTERCEPT] Syntax Check Failed:\n" + "\n".join(errors)

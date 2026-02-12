@@ -1,6 +1,7 @@
 [
   {
     "name": "Summoner",
+    "is_root": true,
     "model": "deepseek-chat",
     "provider": "deepseek",
     "prompt_file": "Summoner.md",
@@ -11,20 +12,28 @@
     "model": "deepseek-chat",
     "provider": "deepseek",
     "prompt_file": "Architect.md",
-    "tools": ["list_directory", "read_file", "write_file", "update_blackboard", "read_blackboard", "call_peer","analyze_code_structure", "web_search"]
+    "tools": ["list_directory", "read_file", "write_file", "update_blackboard", "read_blackboard",  "web_search"]
   },
   {
     "name": "Developer",
     "model": "deepseek-chat",
     "provider": "deepseek",
     "prompt_file": "Developer.md",
-    "tools": ["list_directory","write_file", "read_file", "run_shell_command", "replace_file_lines","analyze_code_structure", "update_blackboard", "read_blackboard", "call_peer"]
+    "tools": ["list_directory","write_file", "read_file", "run_shell_command", "replace_file_lines", "read_blackboard"]
   },
   {
     "name": "Inspector",
     "model": "deepseek-chat",
     "provider": "deepseek",
     "prompt_file": "Inspector.md",
-    "tools": ["read_file", "run_shell_command", "run_python_code", "run_shell_command", "update_blackboard", "read_blackboard", "call_peer"]
-  }
+    "tools": ["read_file", "run_shell_command", "run_python_code", "update_blackboard", "read_blackboard" ]
+  },
+
+  {
+      "name": "Pruner",
+      "model": "gpt-4o-mini", 
+      "provider": "openrouter", 
+      "prompt_file": "Pruner.md",
+      "tools": []
+    }
 ]

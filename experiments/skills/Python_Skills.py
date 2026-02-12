@@ -1,7 +1,6 @@
-import io
-import sys
-import contextlib
 import ast
+import contextlib
+import io
 import re
 
 
@@ -39,7 +38,7 @@ def run_python_code(code: str):
 
 
 
-def analyze_code_structure(code_content: str):
+def analyze_code_structure(code_content: str, parsed_tree: ast.AST = None):
     """
     [新版 AST 静态分析] 解析代码结构，并自动判断实现状态。
 
@@ -50,7 +49,7 @@ def analyze_code_structure(code_content: str):
     }
     """
     try:
-        tree = ast.parse(code_content)
+        tree = parsed_tree if parsed_tree else ast.parse(code_content)
         result = {"classes": [], "functions": []}
         source_lines = code_content.splitlines()
 

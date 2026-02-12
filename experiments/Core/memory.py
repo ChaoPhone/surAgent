@@ -1,10 +1,12 @@
-import json
-import os
 import time
+import threading
 
 
 class MissionContext:
     def __init__(self):
+        # [PREP] 预先引入锁，为并行做准备
+        self._lock = threading.Lock()
+        
         # 初始化数据结构
         self._data = {
             "project_manifest": "暂无架构设计",
@@ -23,34 +25,38 @@ class MissionContext:
 
     def read(self, key):
         """通用读取接口"""
-        if key not in self.allowed_keys:
-            return f"Error: Key '{key}' is not defined."
-        return self._data.get(key, "Empty")
+        with self._lock:
+            if key not in self.allowed_keys:
+                return f"Error: Key '{key}' is not defined."
+            return self._data.get(key, "Empty")
 
     def write(self, key, value):
         """通用写入接口（主要用于 Manifest 和 Logs）"""
-        if key not in self.allowed_keys:
-            return f"Error: You are not allowed to write to '{key}'."
-        self._data[key] = value
-        return f"Successfully updated '{key}'."
+        with self._lock:
+            if key not in self.allowed_keys:
+                return f"Error: You are not allowed to write to '{key}'."
+            self._data[key] = value
+            return f"Successfully updated '{key}'."
 
     def register_file(self, filename, description, structure_data):
         """
         更新文件注册表，接收结构化分析数据。
         """
-        self._data["file_registry"][filename] = {
-            "desc": description,
-            "structure": structure_data  # 这里存的是字典，不是字符串了
-        }
+        with self._lock:
+            self._data["file_registry"][filename] = {
+                "desc": description,
+                "structure": structure_data  # 这里存的是字典，不是字符串了
+            }
         self.add_event(f"Updated {filename}: {description}")
 
     def add_event(self, event_text):
         """[Trae 逻辑] 添加一条记忆"""
-        timestamp = time.strftime('%H:%M:%S')
-        self._data["memory_stream"].append(f"[{timestamp}] {event_text}")
-        # 保持记忆流不超过 15 条，防止 Context 溢出
-        if len(self._data["memory_stream"]) > 15:
-            self._data["memory_stream"] = self._data["memory_stream"][-15:]
+        with self._lock:
+            timestamp = time.strftime('%H:%M:%S')
+            self._data["memory_stream"].append(f"[{timestamp}] {event_text}")
+            # 保持记忆流不超过 15 条，防止 Context 溢出
+            if len(self._data["memory_stream"]) > 15:
+                self._data["memory_stream"] = self._data["memory_stream"][-15:]
 
     def get_snapshot(self):
         """

@@ -1,26 +1,42 @@
-import subprocess
 import os
-import sys
+import re
+import subprocess
 
 
 def run_shell_command(command: str, timeout: int = 10):
     """
-    执行 Shell 命令。包含防卡死、自动路径注入和编码容错机制。
+    执行 Shell 命令。采用严格的白名单策略与防卡死机制。
     """
-    # 1. 安全拦截
-    forbidden = ["rm -rf", "format", "mkfs", ":(){:|:&};:"]
-    if any(bad in command for bad in forbidden):
-        return "Error: Command blocked by safety policy."
-
     print(f"⚡️ Running: {command} (Timeout: {timeout}s)...")
 
-    # 2. 自动注入 PYTHONPATH (逻辑保持不变，略作优化)
+    # 1. 严格白名单策略 (Whitelist Policy)
+    # 仅允许执行的基础命令列表（根据你的项目需求，可自行添加 npm, node, pytest 等）
+    ALLOWED_COMMANDS = {"python", "python3", "pip", "ls", "cd", "dir", "cat", "echo","pytest"}
+
+    # 绝对禁止的重定向操作 (严格贯彻 Developer Prompt 要求)
+    if ">" in command or ">>" in command:
+        return "Error: Redirection (>, >>) is strictly forbidden. Use 'write_file' tool to modify files."
+
+    # 解析可能被 &&, ;, | 连接的多条命令
+    # 例如：cd output/snake_game && python main.py
+    sub_commands = re.split(r'&&|;|\|', command)
+    for sub_cmd in sub_commands:
+        parts = sub_cmd.strip().split()
+        if not parts:
+            continue
+
+        base_cmd = parts[0]  # 提取基础命令
+        if base_cmd not in ALLOWED_COMMANDS:
+            return (f"Error: Command '{base_cmd}' blocked by security policy. "
+                    f"Allowed commands are: {', '.join(ALLOWED_COMMANDS)}.")
+
+    # 2. 自动注入 PYTHONPATH
     env = os.environ.copy()
     project_roots = []
     if os.path.exists("output"):
         for item in os.listdir("output"):
             full_path = os.path.abspath(os.path.join("output", item))
-            if os.path.isdir(full_path) and not item.startswith("."):  # 忽略 .git 等隐藏目录
+            if os.path.isdir(full_path) and not item.startswith("."):
                 project_roots.append(full_path)
                 src_path = os.path.join(full_path, "src")
                 if os.path.exists(src_path):
@@ -32,17 +48,16 @@ def run_shell_command(command: str, timeout: int = 10):
         env["PYTHONPATH"] = (env.get("PYTHONPATH", "") + separator + additional_path).strip(separator)
 
     try:
-        # 3. 执行命令 (核心修改)
+        # 3. 执行命令 (含防卡死与编码容错)
         result = subprocess.run(
             command,
             shell=True,
             capture_output=True,
-            text=True,  # 自动解码为字符串
-            timeout=timeout,  # 强制超时
+            text=True,
+            timeout=timeout,
             env=env,
-            # ---【防卡死关键修改】---
-            stdin=subprocess.DEVNULL,  # 1. 切断输入流：遇到交互式命令直接报错，而不是挂起等待
-            errors='backslashreplace'  # 2. 编码容错：遇到无法解码的字符（如GBK乱码）用转义符替换，防止解码报错卡死
+            stdin=subprocess.DEVNULL,  # 切断输入流，防止交互式命令卡死
+            errors='backslashreplace'  # 编码容错
         )
 
         output = f"STDOUT:\n{result.stdout}\n"
@@ -55,13 +70,8 @@ def run_shell_command(command: str, timeout: int = 10):
         return output.strip()
 
     except subprocess.TimeoutExpired as e:
-        # 处理超时情况
         captured_out = e.stdout if e.stdout else "(No stdout captured)"
         captured_err = e.stderr if e.stderr else "(No stderr captured)"
-
-        # Windows 特殊处理：如果是 Shell=True，TimeoutExpired 可能杀不掉孙子进程
-        # 这里只是做个标记，真正的彻底查杀需要 psutil 库，但为了最小依赖，我们至少返回目前捕获到的信息
-
         return (
             f"⚠️ [TIMEOUT] Process ran for {timeout}s and was terminated.\n"
             f"STDOUT: {captured_out}\n"

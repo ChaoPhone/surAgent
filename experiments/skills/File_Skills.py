@@ -1,55 +1,104 @@
-import os
 import ast
 import json
-from blackboard import project_context
+import os
+
+from Core.memory import project_context
+from .Pruner_Skills import apply_context_pruning
 
 
+# [PREP] 新增路径解析函数
+def _resolve_path(file_path: str) -> str:
+    """
+    统一的路径解析器。
+    当前版本：直接指向 output/
+    未来版本：根据线程上下文指向 workspaces/{id}/
+    """
+    # 1. 路径清洗 (兼容 Windows 的 \ 符号)
+    clean_path = file_path.replace("\\", "/")
+    if clean_path.startswith("./"):
+        clean_path = clean_path[2:]
+    clean_path = clean_path.lstrip("/")
 
-def validate_syntax(file_path: str, content: str) -> str:
+    # 剥离可能重复输入的 output 前缀
+    parts = clean_path.split('/')
+    if parts[0] == "output":
+        parts = parts[1:]
+
+    # [未来在这里插入 Sandbox 逻辑]
+    base_dir = "output"
+
+    return os.path.join(base_dir, *parts)
+
+
+def validate_syntax(file_path: str, content: str) -> tuple:
     """
     [内部函数] 强制语法校验
-    返回 None 表示通过，返回 字符串 表示错误信息
+    返回 (error_msg, parsed_tree)
     """
-    # 1. Python 语法检查
     if file_path.endswith(".py"):
         try:
-            ast.parse(content)
-            return None  # ✅ Pass
+            tree = ast.parse(content)
+            return None, tree
         except SyntaxError as e:
-            return f"❌ Python Syntax Error on line {e.lineno}: {e.msg}. YOU MUST FIX THIS."
+            return f"❌ Python Syntax Error on line {e.lineno}: {e.msg}...", None
         except Exception as e:
-            return f"❌ Python Parse Error: {str(e)}"
+            return f"❌ Python Parse Error: {str(e)}", None
 
-    # 2. JSON 格式检查
     elif file_path.endswith(".json"):
         try:
             json.loads(content)
-            return None  # ✅ Pass
+            return None, None
         except json.JSONDecodeError as e:
-            return f"❌ Invalid JSON format: {e.msg}. YOU MUST FIX THIS."
+            return f"❌ Invalid JSON format: {e.msg}. YOU MUST FIX THIS.", None
 
-    # 3. HTML 基础结构检查 (防止写出一半的代码)
     elif file_path.endswith(".html"):
         if "<html" not in content.lower() or "</html>" not in content.lower():
-            return "⚠️ Warning: HTML file seems incomplete (missing <html> tags). Please verify."
-        return None
+            return "⚠️ Warning: HTML file seems incomplete (missing <html> tags). Please verify.", None
+        return None, None
 
-    return None
+    return None, None
 
 
 def write_file(file_path: str, content: str, description: str = "Update code"):
     """
-    将内容写入文件，并自动进行语法自检。如果语法错误，写入会成功但会返回错误警告。
+    【必须使用此工具来创建或修改文件】将内容写入指定路径的文件中。
+    🚨注意：本工具会自动创建所有不存在的文件夹（父目录），你绝不需要请求建目录！
+
+    Args:
+        file_path: 文件的相对路径，例如 'snake_game/core.py'
+        content: 要写入的完整代码内容。
+        description: 对此次写入的简短描述。
     """
     try:
-        # 1. 路径清洗
-        clean_path = file_path.lstrip("./").lstrip("/")
-        if not clean_path.startswith("output"):
-            target_path = os.path.join("output", clean_path)
-        else:
-            target_path = clean_path
+        # =========== 🛡️ 新增：防偷懒拦截器 (Anti-Laziness Guard) ===========
+        # 检测常见的 LLM 偷懒占位符
+        lazy_markers = [
+            "Content omitted",
+            "content omitted",
+            "rest of the code",
+            "Existing code",
+            "..."  # 只有当 ... 独占一行或在注释中时才危险，这里做简单检测
+        ]
 
-        # 安全检查
+        # 1. 严格拦截显式的 "Content omitted"
+        if "Content omitted" in content or "content omitted" in content:
+            return "❌ SYSTEM REJECTION: 检测到偷懒行为！你写入了 '(Content omitted)'。你必须输出完整代码！如果文件太长，请先写骨架，再用 replace_file_lines 填充。"
+
+        # 2. 启发式拦截：如果文件很短却包含大量 ...，可能是偷懒
+        # (这里只做简单警告，防止误伤 Python 的 Ellipsis 对象)
+        if content.count("...") > 3 and len(content) < 500:
+            return "⚠️ WARNING: 检测到过多的 '...'。请确认你没有省略代码逻辑。如果需要分块写入，请使用 replace_file_lines。"
+        # =================================================================
+        # 2. 使用统一解析器获取目标路径
+        target_path = _resolve_path(file_path)
+
+        # 强制阻断散落根目录
+        parts = os.path.normpath(target_path).split(os.sep)
+        # parts[0] 应该是 'output'，如果总长度小于 3，说明是在 output/ 直接写文件
+        if len(parts) < 3:
+            return f"❌ REJECTION: 路径错误！你试图将文件 '{file_path}' 直接散落在根目录。必须将其放在项目子文件夹内 (例如: output/snake_game/main.py)。"
+
+        # 3. 安全检查与自动建目录
         if ".." in target_path:
             return "Error: Access to parent directories is restricted."
 
@@ -57,38 +106,35 @@ def write_file(file_path: str, content: str, description: str = "Update code"):
         if parent_dir and not os.path.exists(parent_dir):
             os.makedirs(parent_dir, exist_ok=True)
 
-        # 2. 写入磁盘 (我们先写盘，方便后续读取分析)
+        # 4. 写入磁盘
         with open(target_path, 'w', encoding='utf-8') as f:
             f.write(content)
 
-        # 3. [新增] 强制语法自检 (Self-Check)
-        # 这一步是关键：如果代码写烂了，工具直接报错，逼Agent立刻重写
-        syntax_error = validate_syntax(target_path, content)
-
-        status_msg = ""
-        structure_data = {}
+        # 5. 语法校验与元数据提取
+        syntax_error, parsed_tree = validate_syntax(target_path, content)
 
         if syntax_error:
-            # 如果有语法错误，虽然文件写了，但我们要给 Agent 报红灯
             status_msg = f"⚠️ WROTE FILE BUT FAILED SYNTAX CHECK:\n{syntax_error}\n\n👉 ACTION REQUIRED: Rewrite the file immediately to fix the syntax!"
-            # 在黑板上也标记为错误
             structure_data = {"error": syntax_error}
         else:
-            # 语法正确，正常提取结构
-            status_msg = f"✅ Success: File written to {target_path} (Syntax Valid)."
+            status_msg = f"✅ Success..."
             if target_path.endswith(".py"):
                 from .Python_Skills import analyze_code_structure
-                structure_data = analyze_code_structure(content)
+                structure_data = analyze_code_structure(content, parsed_tree=parsed_tree)
             else:
-                structure_data = "Non-Python file, syntax OK."
+                # 【核心修复】：为非 Python 文件 (如 txt, json) 赋予初始值，彻底消灭 UnboundLocalError
+                structure_data = "Success (Non-Python file)"
 
-        # 4. 更新黑板
-        project_context.register_file(clean_path, description, structure_data)
+        # 6. 更新黑板 (使用相对于 output 的路径作为标识)
+        clean_relative_path = "/".join(os.path.normpath(target_path).split(os.sep)[1:])
+        project_context.register_file(clean_relative_path, description, structure_data)
 
         return status_msg
 
     except Exception as e:
         return f"Error writing file: {str(e)}"
+
+
 
 def read_file(file_path: str, focus_question: str = None):
     """
@@ -98,19 +144,20 @@ def read_file(file_path: str, focus_question: str = None):
         focus_question: [可选] 如果文件很大，请提供你关注的具体问题（如“它是如何处理碰撞的？”）。
                         系统将利用语义裁剪技术，只为你保留相关的代码行，从而节省 Token。
     """
-    print(f"DEBUG: read_file called for {file_path} with focus_question='{focus_question}'")
-    if not os.path.exists(file_path):
-        return f"Error: File {file_path} not found."
+    target_path = _resolve_path(file_path)
+    print(f"DEBUG: read_file called for {file_path} (resolved: {target_path}) with focus_question='{focus_question}'")
+    if not os.path.exists(target_path):
+        return f"Error: File {target_path} not found."
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(target_path, 'r', encoding='utf-8') as f:
             content = f.read()
 
         # 如果提供了关注点，且内容较长，则进行裁剪
-        if focus_question and len(content) > 1200: # 只要超过 1200 字符就尝试裁剪，提高精准度
+        if focus_question and len(content) > 20: # 只要超过 1200 字符就尝试裁剪，提高精准度
             return apply_context_pruning(content, focus_question)
         
         # 【强化拦截】强制要求 Agent 必须思考“我要读什么”
-        if not focus_question and len(content) > 2000:
+        if not focus_question and len(content) > 20:
             msg = (
                 f"⚠️ 拦截警告：文件 {file_path} 内容较多（约 {len(content)} 字符）。\n"
                 f"为了避免过多的无关信息干扰你的判断并节省 Token 成本，系统禁止全量读取。\n"
@@ -124,71 +171,6 @@ def read_file(file_path: str, focus_question: str = None):
     except Exception as e:
         return f"Error reading file: {str(e)}"
 
-
-def apply_context_pruning(content: str, query: str):
-    """
-    [SWE-Pruner 核心逻辑]
-    利用轻量级 LLM 模拟论文中的 Neural Skimmer 进行行级裁剪。
-    """
-    from llm_connection import LLMClient
-    from langchain_core.messages import SystemMessage, HumanMessage
-    
-    # 1. 准备轻量级客户端 (建议使用最便宜的模型)
-    client = LLMClient(provider="openrouter") # 或者你默认的 provider
-    
-    # 2. 构建裁剪指令
-    lines = content.splitlines()
-    indexed_content = "\n".join([f"{i+1}: {line}" for i, line in enumerate(lines)])
-    
-    prune_prompt = f"""
-你是一个代码分析专家。你的任务是从下面的代码中提取与用户问题最相关的行号。
-
-【用户问题】：{query}
-
-【代码内容】：
-{indexed_content}
-
-【要求】：
-1. 只输出相关的行号，用逗号分隔，如：1,2,3,10,11,12
-2. 如果某一部分代码（如整个函数）都相关，请列出该函数的所有行号。
-3. 不要输出任何文字解释，只输出数字和逗号。
-"""
-    
-    try:
-        response = client.get_completion(
-            model="gpt-4o-mini", # 强制使用小模型以保证速度和成本
-            messages=[HumanMessage(content=prune_prompt)]
-        )
-        
-        # 3. 解析返回的行号
-        target_line_nums = []
-        import re
-        nums = re.findall(r'\d+', response.content)
-        target_line_nums = [int(n) for n in nums]
-        
-        if not target_line_nums:
-            return content[:1000] + "\n... (裁剪失败，返回前 1000 字符) ..."
-
-        # 4. 扩充上下文 (保留关键行及其前后各 2 行，避免逻辑断层)
-        final_indices = set()
-        for n in target_line_nums:
-            for i in range(max(1, n-2), min(len(lines), n+2) + 1):
-                final_indices.add(i-1)
-        
-        # 5. 组装结果
-        sorted_indices = sorted(list(final_indices))
-        pruned_lines = []
-        last_idx = -1
-        for idx in sorted_indices:
-            if last_idx != -1 and idx > last_idx + 1:
-                pruned_lines.append(f"\n... [已省略 {idx - last_idx - 1} 行] ...\n")
-            pruned_lines.append(f"{idx+1}: {lines[idx]}")
-            last_idx = idx
-            
-        return "\n".join(pruned_lines)
-
-    except Exception as e:
-        return f"Error during pruning: {str(e)}\n\nOriginal Content (Partial):\n{content[:1000]}"
 
 
 def list_directory(dir_path: str = "."):
@@ -216,18 +198,14 @@ def replace_file_lines(file_path: str, start_line: int, end_line: int, new_conte
     """
     【精准修改】替换文件中指定行号范围的内容。
     Args:
-        file_path: 文件路径 (如 output/snake_game/main.py)
+        file_path: 文件路径 (如 snake_game/main.py)
         start_line: 起始行号 (从 1 开始)
         end_line: 结束行号 (包含该行)
         new_content: 新的代码片段
     """
     try:
-        # 1. 路径清洗
-        clean_path = file_path.lstrip("./").lstrip("/")
-        if not clean_path.startswith("output"):
-            target_path = os.path.join("output", clean_path)
-        else:
-            target_path = clean_path
+        # [PREP] 使用统一解析器
+        target_path = _resolve_path(file_path)
 
         if not os.path.exists(target_path):
             return f"Error: File {target_path} not found."
@@ -250,7 +228,10 @@ def replace_file_lines(file_path: str, start_line: int, end_line: int, new_conte
 
         # 4. 执行替换 (注意 Python 列表是从 0 开始，而行号是从 1 开始)
         # 转换 new_content 为列表，确保末尾有换行
-        new_lines = [line + '\n' if not line.endswith('\n') else line for line in new_content.splitlines()]
+        new_lines = new_content.splitlines(keepends=True)
+        # 确保最后一行始终带有换行符，防止与后面的内容粘连
+        if new_lines and not new_lines[-1].endswith('\n'):
+            new_lines[-1] += '\n'
 
         # 核心切片逻辑
         final_lines = lines[:start_line - 1] + new_lines + lines[end_line:]
