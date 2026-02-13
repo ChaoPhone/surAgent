@@ -15,11 +15,11 @@
     "tools": ["list_directory", "read_file", "write_file", "update_blackboard", "read_blackboard",  "web_search"]
   },
   {
-    "name": "Developer",
+    "name": "TechLead",
     "model": "deepseek-chat",
     "provider": "deepseek",
-    "prompt_file": "Developer.md",
-    "tools": ["list_directory","write_file", "read_file", "run_shell_command", "replace_file_lines", "read_blackboard"]
+    "prompt_file": "TechLead.md",
+    "tools": ["list_directory","write_file", "read_file", "run_shell_command", "replace_file_lines", "read_blackboard", "batch_coding_tasks"]
   },
   {
     "name": "Inspector",

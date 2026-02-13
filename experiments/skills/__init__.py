@@ -7,6 +7,7 @@ from .Pruner_Skills import apply_context_pruning
 from .Python_Skills import analyze_code_structure, run_python_code
 from .Shell_Skills import run_shell_command
 from .Web_Skills import web_search
+from .Parallel_Skills import batch_coding_tasks
 
 # 导出技能字典，供 Core.engine 主动拉取
 EXPORTED_SKILLS = {
@@ -29,6 +30,9 @@ EXPORTED_SKILLS = {
     "update_blackboard": update_blackboard,
     "read_blackboard": read_blackboard,
     "dispatch_mission": dispatch_mission,
-    "mark_mission_complete": mark_mission_complete
+    "mark_mission_complete": mark_mission_complete,
+
+    # Parallel
+    "batch_coding_tasks": batch_coding_tasks
 }
 

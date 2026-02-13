@@ -1,198 +1,259 @@
-import json
-import os
-import time
+# File: Debug/dashboard.py
 import streamlit as st
+import json
+import time
+import os
+import pandas as pd
+import altair as alt
 import streamlit.components.v1 as components
 
-# 1. 页面配置 (必须是第一个 Streamlit 命令)
-st.set_page_config(page_title="Swarm Monitor", layout="wide", page_icon="🐝")
+# === 页面配置 ===
+st.set_page_config(
+    page_title="SurAgent Command Center",
+    page_icon="🛡️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# 自动刷新状态初始化
-if 'last_update' not in st.session_state:
-    st.session_state.last_update = time.time()
+# === 样式定制 ===
+st.markdown("""
+<style>
+    .stMetric { background-color: #0e1117; border: 1px solid #303030; border-radius: 5px; padding: 10px; }
+    .agent-stat-card { background-color: #1e1e1e; padding: 15px; border-radius: 8px; border-left: 5px solid #00ADB5; }
+    .terminal-log { font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; }
+    .log-time { color: #569cd6; margin-right: 10px; }
+    .log-agent-TechLead { color: #E65100; font-weight: bold; }
+    .log-agent-Summoner { color: #B71C1C; font-weight: bold; }
+    .log-agent-System { color: #607D8B; }
+    .log-agent-Worker { color: #2E7D32; }
+</style>
+""", unsafe_allow_html=True)
 
 
+# === 数据加载 ===
 def load_data():
-    """加载监控数据"""
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    path = os.path.join(current_dir, "run_state.json")
-    if not os.path.exists(path):
-        return None
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return None
+    path = os.path.join("Debug", "run_state.json")
+    if os.path.exists(path):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            pass
+    return None
 
-
-def render_snake_mermaid(sequence_trace):
-    """
-    生成紧凑的“蛇形”Mermaid 流程图代码
-    """
-    if not sequence_trace:
-        return "graph TB; N0[Waiting for Data...];"
-
-    # --- 样式定义 ---
-    styles = {
-        "Summoner": "#ff9900",  # 橙
-        "Architect": "#00ccff",  # 蓝
-        "Developer": "#00cc99",  # 绿
-        "Inspector": "#9933ff",  # 紫
-        "Pruner": "#ff3366",  # 红
-        "Default": "#999999"  # 灰
-    }
-
-    emoji_map = {
-        "Summoner": "🧙‍♂️", "Architect": "📐", "Developer": "👨‍💻",
-        "Inspector": "🕵️‍♂️", "Pruner": "✂️"
-    }
-
-    # 基础图表定义
-    mermaid_code = "graph TB;\n"
-
-    # 注入样式类
-    for role, color in styles.items():
-        mermaid_code += f"classDef {role} fill:{color},stroke:#fff,stroke-width:2px,color:white,rx:5,ry:5,shadow:shadow;\n"
-
-    # --- 核心：蛇形折返算法 ---
-    ROW_SIZE = 8  # 每行显示的节点数量 (根据屏幕宽度调整)
-
-    # 将 trace 切分为多行
-    chunks = [sequence_trace[i:i + ROW_SIZE] for i in range(0, len(sequence_trace), ROW_SIZE)]
-
-    links = []
-    global_index = 0
-
-    for row_idx, chunk in enumerate(chunks):
-        # 偶数行从左到右 (LR)，奇数行从右到左 (RL)
-        direction = "LR" if row_idx % 2 == 0 else "RL"
-
-        mermaid_code += f"subgraph Row{row_idx}\n direction {direction}\n"
-
-        row_node_ids = []
-        for agent in chunk:
-            node_id = f"N{global_index}"
-            role_style = agent if agent in styles else "Default"
-            emoji = emoji_map.get(agent, "🤖")
-
-            # 定义节点: N1["emoji AgentName"]:::Style
-            mermaid_code += f'{node_id}["{emoji} {agent}"]:::{role_style};\n'
-            row_node_ids.append(node_id)
-            global_index += 1
-
-        # 行内连接 (A --> B)
-        # 注意：Mermaid 的 RL 模式会自动反向渲染，所以逻辑连接顺序始终是正向的
-        if len(row_node_ids) > 1:
-            mermaid_code += " --> ".join(row_node_ids) + ";\n"
-
-        mermaid_code += "end\n"  # 结束 subgraph
-
-        # --- 行间连接 (连接上一行的尾巴 -> 当前行的头) ---
-        if row_idx > 0:
-            # 上一行的最后一个节点 ID
-            prev_last_id = f"N{row_idx * ROW_SIZE - 1}"
-            # 当前行的第一个节点 ID
-            curr_first_id = f"N{row_idx * ROW_SIZE}"
-            links.append(f"{prev_last_id} --> {curr_first_id}")
-
-    # 添加所有的跨行连接
-    if links:
-        mermaid_code += "\n".join(links) + ";\n"
-
-    # 封装 HTML
-    html_code = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <script type="module">
-            import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.esm.min.mjs';
-            mermaid.initialize({{ 
-                startOnLoad: true, 
-                theme: 'base', 
-                flowchart: {{ curve: 'monotoneY', padding: 15 }} 
-            }});
-        </script>
-    </head>
-    <body style="background-color: transparent;">
-        <div class="mermaid" style="display: flex; justify-content: center; width: 100%;">
-            {mermaid_code}
-        </div>
-    </body>
-    </html>
-    """
-    return html_code
-
-
-# --- 主界面逻辑 ---
-
-st.title("🐝 Swarm Agent 蜂群监控中心")
 
 data = load_data()
 
+# 自动刷新 (2s)
 if not data:
-    st.warning("⏳ 等待数据初始化... (请先运行 main.py)")
+    st.warning("📡 等待系统信号...")
     time.sleep(2)
     st.rerun()
 
-# 1. 顶部 KPI 指标
-k1, k2, k3 = st.columns(3)
-k1.metric("🤖 当前执行者", data.get("current_agent", "Idle"))
-k2.metric("🪙 Token 总耗", f"{data.get('total_tokens', 0):,}")
-k3.metric("⏱️ 最后活跃", time.strftime('%H:%M:%S', time.localtime(data.get('last_active_time', 0))))
+# ==============================================================================
+# 1. 顶层：极简 HUD
+# ==============================================================================
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    last_active = data.get("last_active_time", time.time())
+    diff = int(time.time() - last_active)
+    label = "🟢 运行中" if diff < 15 else "🔴 已挂起"
+    st.metric("系统心跳", f"{label}", f"{diff}s 前刷新")
+
+with col2:
+    st.metric("💰 Token 总量", f"{data.get('token_total', 0):,}")
+
+with col3:
+    start_time = data.get("system_start_time", time.time())
+    run_duration = int(time.time() - start_time)
+    m, s = divmod(run_duration, 60)
+    st.metric("⏱️ 运行时间", f"{m}分 {s}秒")
+
+with col4:
+    st.metric("👑 当前执政", data.get("current_agent", "System"))
 
 st.divider()
 
-# 2. 核心布局：左侧 (图表+日志) vs 右侧 (黑板)
-# 比例调整为 1.8 : 1.2，给黑板更多空间
-col_left, col_right = st.columns([1.8, 1.2])
+# ==============================================================================
+# 2. 核心层：战术指挥台 (Tactical Command)
+# ==============================================================================
+col_map, col_inspector = st.columns([1.5, 1])
 
-with col_left:
-    st.subheader("🐍 协作追踪 (Snake Timeline)")
+# --- 左侧：动态拓扑图 ---
+with col_map:
+    st.subheader("🗺️ 协作拓扑 (Topology)")
+
     trace = data.get("sequence_trace", [])
-    # 渲染 Mermaid
-    if trace:
-        html = render_snake_mermaid(trace)
-        components.html(html, height=450, scrolling=True)
+    parallel_history = data.get("parallel_history", [])
+    current_agent = data.get("current_agent", "")
+
+    # 构建 Mermaid
+    mermaid_code = "graph TD\n"
+    mermaid_code += "  Start((🚀)) --> Summoner\n"
+
+    # 绘制主干
+    # 简化：只显示最近的链路，避免图过大
+    display_trace = trace[-8:] if len(trace) > 8 else trace
+    if len(trace) > 8:
+        mermaid_code += f"  Previous[...] --> {display_trace[0]}\n"
+
+    for i in range(len(display_trace) - 1):
+        mermaid_code += f"  {display_trace[i]} --> {display_trace[i + 1]}\n"
+
+    # 绘制最新的并行子图
+    if parallel_history:
+        latest = parallel_history[-1]
+        manager = latest['manager']
+        mermaid_code += f"\n  subgraph Parallel_Batch [⚡ {manager} 的子任务]\n"
+        mermaid_code += "  direction TB\n"
+        for task in latest['tasks']:
+            role = task['role'].replace(" ", "_")  # 安全清洗
+            mermaid_code += f"    {manager} -.-> {role}({role})\n"
+
+            # 状态染色 (根据 agent_stats)
+            stats = data.get("agent_stats", {}).get(task['role'], {})
+            status = stats.get("status", "idle")
+            if status == "finished":
+                mermaid_code += f"    style {role} fill:#4CAF50,stroke:#fff;\n"
+            elif status == "error":
+                mermaid_code += f"    style {role} fill:#F44336,stroke:#fff;\n"
+            else:
+                mermaid_code += f"    style {role} fill:#FFEB3B,stroke:#333,color:#000;\n"
+        mermaid_code += "  end\n"
+
+    # 高亮当前
+    if current_agent:
+        mermaid_code += f"  style {current_agent} fill:#FF5722,stroke:#fff,stroke-width:4px;\n"
+
+    # 渲染
+    mermaid_html = f"""
+        <script type="module">
+            import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+            mermaid.initialize({{ startOnLoad: true, theme: 'dark' }});
+        </script>
+        <div class="mermaid" style="text-align: center;">
+            {mermaid_code}
+        </div>
+    """
+    components.html(mermaid_html, height=350, scrolling=True)
+
+# --- 右侧：审查面板 (Inspector) ---
+with col_inspector:
+    st.subheader("🕵️‍♀️ 节点审查 (Inspector)")
+
+    # 1. 获取所有已知 Agent
+    all_agents = list(data.get("agent_stats", {}).keys())
+    # 加上 Profile 里有的但可能还没跑数据的
+    all_agents += list(data.get("agent_profiles", {}).keys())
+    all_agents = sorted(list(set(all_agents)))
+
+    if not all_agents:
+        st.info("暂无 Agent 活跃数据")
     else:
-        st.info("暂无交互记录")
+        # 联动选择器
+        selected_agent = st.selectbox("🔍 选择要审查的 Agent", all_agents, index=0)
 
-    st.subheader("📜 运行日志 (最近200条)")
-    logs = data.get("logs", [])
-    if logs:
-        # 倒序排列，让最新的显示在最上面
-        log_text = "\n".join(reversed(logs))
-        st.text_area("Live Logs", log_text, height=400, disabled=True)
+        # 读取数据
+        stats = data.get("agent_stats", {}).get(selected_agent, {})
+        profile = data.get("agent_profiles", {}).get(selected_agent, {})
+
+        # 展示卡片
+        st.markdown(f"""
+        <div class="agent-stat-card">
+            <h3>🤖 {selected_agent}</h3>
+            <div><strong>Status:</strong> {stats.get('status', 'Unknown')}</div>
+            <div><strong>Last Active:</strong> {time.strftime('%H:%M:%S', time.localtime(stats.get('last_seen', 0))) if stats else 'N/A'}</div>
+            <hr style="border-color: #444;">
+            <div style="display: flex; justify-content: space-between;">
+                <span style="color: #42A5F5;">📥 Input: {stats.get('input', 0):,}</span>
+                <span style="color: #FFA726;">📤 Output: {stats.get('output', 0):,}</span>
+            </div>
+            <div style="text-align: right; font-weight: bold; margin-top: 5px;">
+                Total: {stats.get('tokens', 0):,}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # 展示 Prompt
+        if profile:
+            with st.expander("📄 查看完整指令 (System Prompt)", expanded=False):
+                st.markdown(f"**Temp:** `{profile.get('temperature')}` | **Model:** `{profile.get('model')}`")
+                st.code(profile.get('instruction', 'No instruction recorded'), language="markdown")
+        else:
+            st.caption("*该 Agent 为系统预设或尚未被并行调度捕获，暂无 Prompt 记录*")
+
+# ==============================================================================
+# 3. 资源透视 (堆叠柱状图)
+# ==============================================================================
+st.subheader("📊 资源消耗透视 (Resource Stack)")
+
+if data.get("agent_stats"):
+    # 数据转换：Flat Map
+    chart_data = []
+    for name, s in data["agent_stats"].items():
+        chart_data.append({"Agent": name, "Type": "Input", "Tokens": s.get("input", 0)})
+        chart_data.append({"Agent": name, "Type": "Output", "Tokens": s.get("output", 0)})
+
+    df_chart = pd.DataFrame(chart_data)
+
+    # Altair 堆叠图
+    chart = alt.Chart(df_chart).mark_bar().encode(
+        x=alt.X('Agent', title=None, sort='-y'),
+        y=alt.Y('Tokens', title='Token Count'),
+        color=alt.Color('Type', scale=alt.Scale(domain=['Input', 'Output'], range=['#42A5F5', '#FFA726'])),
+        tooltip=['Agent', 'Type', 'Tokens']
+    ).properties(height=250, width='container')
+
+    st.altair_chart(chart, use_container_width=True)
+
+# ==============================================================================
+# 4. 日志层：黑客终端
+# ==============================================================================
+st.divider()
+st.subheader("💻 实时信号流 (Terminal)")
+
+logs = data.get("logs", [])[-15:]  # 显示最后15条
+log_html = '<div style="background-color: #000; padding: 15px; border-radius: 5px; height: 300px; overflow-y: auto;">'
+
+for log in reversed(logs):
+    # 兼容旧日志
+    if isinstance(log, str): continue
+
+    t = log.get('time', '')
+    a = log.get('agent', 'System')
+    act = log.get('action', '')
+
+    # 颜色映射
+    color_class = "log-agent-Worker"
+    if a == "TechLead":
+        color_class = "log-agent-TechLead"
+    elif a == "Summoner":
+        color_class = "log-agent-Summoner"
+    elif a == "System":
+        color_class = "log-agent-System"
+
+    log_html += f"""
+    <div class="terminal-log">
+        <span class="log-time">[{t}]</span>
+        <span class="{color_class}">{a}</span>: 
+        <span style="color: #d4d4d4;">{act}</span>
+    </div>
+    """
+log_html += '</div>'
+st.markdown(log_html, unsafe_allow_html=True)
+
+# ==============================================================================
+# 5. 底层：全局记忆库
+# ==============================================================================
+st.markdown("<br>", unsafe_allow_html=True)
+with st.expander("🧠 全局黑板 (Global Blackboard - Deep Memory)", expanded=False):
+    bb = data.get("blackboard", {})
+    if bb:
+        st.json(bb)
     else:
-        st.info("暂无日志")
+        st.caption("黑板暂无数据")
 
-with col_right:
-    st.subheader("📋 项目黑板 (Blackboard)")
-    blackboard = data.get("blackboard", {})
-
-    if not blackboard:
-        st.info("黑板暂无内容 (Waiting for Architect...)")
-    else:
-        # 遍历展示黑板上的所有 Key
-        for key, content in blackboard.items():
-            # 默认展开重要的 manifest
-            is_expanded = (key == "project_manifest")
-
-            with st.expander(f"📌 {key}", expanded=is_expanded):
-                if isinstance(content, str):
-                    # 如果内容是代码或 Markdown，进行高亮渲染
-                    if len(content) > 2000:
-                        st.caption(f"⚠️ 内容过长，仅展示前 2000 字符 (Total: {len(content)})")
-
-                    # 根据 key 推测语言类型
-                    lang = "markdown" if "manifest" in key else "python"
-                    if "json" in key or content.strip().startswith("{"):
-                        lang = "json"
-
-                    st.code(content[:2000], language=lang)
-                else:
-                    # 如果是结构化数据（字典/列表），直接显示 JSON
-                    st.json(content)
-
-# 3. 自动刷新机制 (每 2 秒)
+# 自动刷新
 time.sleep(2)
 st.rerun()
