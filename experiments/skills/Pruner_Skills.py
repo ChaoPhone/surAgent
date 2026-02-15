@@ -51,6 +51,10 @@ def apply_context_pruning(content: str, query: str):
         # 4. 扩充上下文逻辑：保留关键行及其前后各 2 行
         final_indices = set()
         for n in target_line_nums:
+            # 过滤掉非法的行号（LLM 幻觉）
+            if n < 1 or n > len(lines):
+                continue
+                
             for i in range(max(1, n-2), min(len(lines), n+2) + 1):
                 final_indices.add(i-1)
         
@@ -58,6 +62,9 @@ def apply_context_pruning(content: str, query: str):
         pruned_lines = []
         last_idx = -1
         for idx in sorted_indices:
+            if idx >= len(lines):
+                continue
+                
             if last_idx != -1 and idx > last_idx + 1:
                 pruned_lines.append(f"\n... [已省略 {idx - last_idx - 1} 行] ...\n")
             pruned_lines.append(f"{idx+1}: {lines[idx]}")

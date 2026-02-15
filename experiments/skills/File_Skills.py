@@ -153,11 +153,11 @@ def read_file(file_path: str, focus_question: str = None):
             content = f.read()
 
         # 如果提供了关注点，且内容较长，则进行裁剪
-        if focus_question and len(content) > 20: # 只要超过 1200 字符就尝试裁剪，提高精准度
+        if focus_question and len(content) > 2000: # 只要超过 2000 字符就尝试裁剪，提高精准度
             return apply_context_pruning(content, focus_question)
         
         # 【强化拦截】强制要求 Agent 必须思考“我要读什么”
-        if not focus_question and len(content) > 20:
+        if not focus_question and len(content) > 2000:
             msg = (
                 f"⚠️ 拦截警告：文件 {file_path} 内容较多（约 {len(content)} 字符）。\n"
                 f"为了避免过多的无关信息干扰你的判断并节省 Token 成本，系统禁止全量读取。\n"

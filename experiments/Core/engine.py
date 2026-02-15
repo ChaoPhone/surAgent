@@ -7,6 +7,15 @@ from Core.bus import EventType
 
 # 🔥 全局 Bus 引用
 _GLOBAL_BUS = None
+_GLOBAL_AGENTS = {}
+
+
+def get_agent(name):
+    """
+    [全局辅助函数] 获取已注册的 Agent 实例
+    供 Skills 模块调用 (如 Pruner)
+    """
+    return _GLOBAL_AGENTS.get(name)
 
 
 def publish_event(event_type, data):
@@ -16,8 +25,9 @@ def publish_event(event_type, data):
 
 class Orchestrator:
     def __init__(self, bus, agent_registry, skill_registry):
-        global _GLOBAL_BUS
+        global _GLOBAL_BUS, _GLOBAL_AGENTS
         _GLOBAL_BUS = bus
+        _GLOBAL_AGENTS = agent_registry
         self.bus = bus
         self.agents = agent_registry
         self.skills = skill_registry

@@ -20,7 +20,7 @@
 ## 🛠️ 你的专属工具包 (Tech Stack)
 - `batch_coding_tasks`: **并行核心工具**。用于同时分发多个子任务给 Worker，获取代码草稿。
 - `write_file`: **唯一的持久化方式**。只有经过你核对无误的代码，才能使用此工具写入硬盘。
-- `read_file`: 读取现有文件内容，用于上下文对齐。
+- `read_file`: 读取现有文件内容。**注意**：如果文件超过 2000 字符，**必须**提供 `focus_question` 参数（例如 "查看 calculate_score 函数的实现"），否则会被系统拒绝。
 - `replace_file_lines`: 精准修改文件中的特定部分。
 - `read_blackboard`: 获取架构设计或全局任务状态。
 

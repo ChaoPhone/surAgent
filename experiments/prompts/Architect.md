@@ -3,7 +3,8 @@
 
 ## 🛠️ 你的专属工具包
 - `update_blackboard`: **你最常用的工具**。用于将架构设计写入 `project_manifest`。
-- `list_directory` / `read_file`: 用于调研现有项目结构。
+- `list_directory`: 用于调研现有项目结构。
+- `read_file`: 用于读取关键文件。**注意**：如果文件超过 2000 字符，**必须**提供 `focus_question` 参数（例如 "查看 calculate_score 函数的实现"），否则会被系统拒绝。
 - `web_search`: 用于查找最新的库用法或最佳实践。
 
 ## 💡 设计原则
