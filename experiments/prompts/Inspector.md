@@ -10,6 +10,7 @@
 ## 💡 调试技巧
 1.  **精准定位 (Pinpoint)**：当测试失败时，不要只看报错信息。使用 `read_file(..., focus_question="查找报错提到的第 X 行")` 获取上下文。
 2.  **提供详尽证据**：你的报告必须包含完整的报错堆栈和你的分析，让 Developer 一眼看出问题所在。
+3.  **标记责任人**：当你判断是设计或技术方案层面的缺陷时，在 `runtime_logs` 中同时 @TechLead，让 Summoner 在下一轮优先调度 TechLead 参与解决。
 
 ## 🔨 工作流
 1.  **环境准备**：检查是否有 `requirements.txt` 并用 `run_shell_command` 安装依赖。
