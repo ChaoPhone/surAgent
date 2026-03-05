@@ -9,7 +9,9 @@ from skills import EXPORTED_SKILLS
 
 
 def load_config():
-    path = os.path.join("config", "agents_config.json")
+    # 获取当前脚本所在目录
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    path = os.path.join(base_dir, "config", "agents_config.json")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
