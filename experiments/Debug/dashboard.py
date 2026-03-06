@@ -122,16 +122,16 @@ with col1:
     st.metric("系统心跳", f"{label}", f"{diff}s 前刷新", height = 128)
 
 with col2:
-    st.metric("💰 Token 总量", f"{data.get('token_total', 0):,}", height = 128)
+    st.metric("Token 总量", f"{data.get('token_total', 0):,}", height = 128)
 
 with col3:
     start_time = data.get("system_start_time", time.time())
     run_duration = int(time.time() - start_time)
     m, s = divmod(run_duration, 60)
-    st.metric("⏱️ 运行时间", f"{m}分 {s}秒", height = 128)
+    st.metric("运行时间", f"{m}分 {s}秒", height = 128)
 
 with col4:
-    st.metric("👑 当前执政", data.get("current_agent", "System"), height = 128)
+    st.metric("当前执政", data.get("current_agent", "System"), height = 128)
 
 st.divider()
 
@@ -142,7 +142,7 @@ col_map, col_inspector = st.columns([1.5, 1])
 
 # --- 左侧：动态拓扑图 ---
 with col_map:
-    st.subheader("🗺️ 协作拓扑 (Topology)")
+    st.subheader("协作拓扑")
 
     trace = data.get("sequence_trace", [])
     parallel_history = data.get("parallel_history", [])
@@ -200,7 +200,7 @@ with col_map:
 
 # --- 右侧：审查面板 (Inspector) ---
 with col_inspector:
-    st.subheader("🕵️‍♀️ 节点审查 (Inspector)")
+    st.subheader("节点审查")
 
     # 1. 获取所有已知 Agent
     all_agents = list(data.get("agent_stats", {}).keys())
@@ -237,7 +237,7 @@ with col_inspector:
 
         # 展示 Prompt
         if profile:
-            with st.expander("📄 查看完整指令 (System Prompt)", expanded=False):
+            with st.expander("查看完整指令", expanded=False):
                 st.markdown(f"**Temp:** `{profile.get('temperature')}` | **Model:** `{profile.get('model')}`")
                 st.code(profile.get('instruction', 'No instruction recorded'), language="markdown")
         else:
@@ -246,7 +246,7 @@ with col_inspector:
 # ==============================================================================
 # 3. 资源透视 (堆叠柱状图)
 # ==============================================================================
-st.subheader("📊 资源消耗透视 (Resource Stack)")
+st.subheader("资源消耗透视")
 
 if data.get("agent_stats"):
     # 数据转换：Flat Map
@@ -271,7 +271,7 @@ if data.get("agent_stats"):
 # 4. 日志层：黑客终端
 # ==============================================================================
 st.divider()
-st.subheader("💻 实时信号流 (Terminal)")
+st.subheader("实时信号流")
 
 logs = data.get("logs", [])[-30:]  # 显示最后30条
 log_html = """
@@ -312,13 +312,12 @@ for log in reversed(logs):
     """
 log_html += '</div>'
 # print(log_html)
-components.html(log_html, height = 640)
+components.html(log_html, height = 300)
 
-# ==============================================================================
-# 5. 底层：全局记忆库
-# ==============================================================================
+st.divider()
+st.subheader("全局黑板")
 st.markdown("<br>", unsafe_allow_html=True)
-with st.expander("🧠 全局黑板 (Global Blackboard - Deep Memory)", expanded=False):
+with st.expander("点击展开/收起", expanded=False):
     bb = data.get("blackboard", {})
     if bb:
         st.json(bb)
