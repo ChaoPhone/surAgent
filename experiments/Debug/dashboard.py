@@ -20,12 +20,6 @@ st.markdown("""
 <style>
     .stMetric { background-color: #0e1117; border: 1px solid #303030; border-radius: 5px; padding: 10px; }
     .agent-stat-card { background-color: #1e1e1e; padding: 15px; border-radius: 8px; border-left: 5px solid #00ADB5; }
-    .terminal-log { font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; }
-    .log-time { color: #569cd6; margin-right: 10px; }
-    .log-agent-TechLead { color: #E65100; font-weight: bold; }
-    .log-agent-Summoner { color: #B71C1C; font-weight: bold; }
-    .log-agent-System { color: #607D8B; }
-    .log-agent-Worker { color: #2E7D32; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -205,7 +199,7 @@ if data.get("agent_stats"):
         tooltip=['Agent', 'Type', 'Tokens']
     ).properties(height=250, width='container')
 
-    st.altair_chart(chart, use_container_width=True)
+    st.altair_chart(chart, width="content")
 
 # ==============================================================================
 # 4. 日志层：黑客终端
@@ -213,8 +207,18 @@ if data.get("agent_stats"):
 st.divider()
 st.subheader("💻 实时信号流 (Terminal)")
 
-logs = data.get("logs", [])[-15:]  # 显示最后15条
-log_html = '<div style="background-color: #000; padding: 15px; border-radius: 5px; height: 300px; overflow-y: auto;">'
+logs = data.get("logs", [])[-30:]  # 显示最后30条
+log_html = """
+<div style="background-color: #000; padding: 15px; border-radius: 5px; height: 300px; overflow-y: auto;">
+    <style>
+        .terminal-log { font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; }
+        .log-time { color: #569cd6; margin-right: 10px; }
+        .log-agent-TechLead { color: #E65100; font-weight: bold; }
+        .log-agent-Summoner { color: #B71C1C; font-weight: bold; }
+        .log-agent-System { color: #607D8B; }
+        .log-agent-Worker { color: #2E7D32; }
+    </style>
+"""
 
 for log in reversed(logs):
     # 兼容旧日志
@@ -241,7 +245,8 @@ for log in reversed(logs):
     </div>
     """
 log_html += '</div>'
-st.markdown(log_html, unsafe_allow_html=True)
+# print(log_html)
+components.html(log_html, height = 640)
 
 # ==============================================================================
 # 5. 底层：全局记忆库
