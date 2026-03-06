@@ -266,11 +266,11 @@ if data.get("agent_stats"):
 st.divider()
 st.subheader("实时信号流")
 
-logs = data.get("logs", [])[-30:]
+logs = data.get("logs", [])[-100:]
 log_html = """
-<div style="background-color: #000; padding: 15px; border-radius: 5px; height: 300px; overflow-y: auto;">
+<div style="background-color: #000; padding: 15px; border-radius: 5px; height: 640px; overflow-y: auto;">
     <style>
-        .terminal-log { font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; }
+        .terminal-log { font-family: 'Consolas', monospace; font-size: 18px; line-height: 1.5; }
         .log-time { color: #569cd6; margin-right: 10px; }
         .log-agent-TechLead { color: #E65100; font-weight: bold; }
         .log-agent-Summoner { color: #B71C1C; font-weight: bold; }
@@ -304,7 +304,7 @@ for log in reversed(logs):
     </div>
     """
 log_html += '</div>'
-components.html(log_html, height = 300)
+components.html(log_html, height = 640)
 
 st.divider()
 st.subheader("全局黑板")
