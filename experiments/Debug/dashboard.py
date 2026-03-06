@@ -18,8 +18,74 @@ st.set_page_config(
 # === 样式定制 ===
 st.markdown("""
 <style>
-    .stMetric { background-color: #0e1117; border: 1px solid #303030; border-radius: 5px; padding: 10px; }
-    .agent-stat-card { background-color: #1e1e1e; padding: 15px; border-radius: 8px; border-left: 5px solid #00ADB5; }
+    :root {
+        --metric-bg: #ffffff;
+        --metric-label: #6c6f7f;
+        --metric-value: #0f1c2e;
+        --metric-delta-positive: #0f9d58;
+        --metric-delta-negative: #d93025;
+        --metric-delta-icon: currentColor;
+        --metric-border: 1px solid #e6e9ef;
+        --metric-border-radius: 0.5rem;
+        --metric-padding: 1rem;
+        --card-bg: #ffffff;
+        --card-border-left: #00ADB5;
+        --card-text: #0f1c2e; 
+    }
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --metric-bg: #1e1e1e;
+            --metric-label: #b0b3b8;
+            --metric-value: #e4e6eb;
+            --metric-delta-positive: #81c995;
+            --metric-delta-negative: #f28b82;
+            --metric-border: 1px solid #3a3b3d;
+            --card-bg: #1e1e1e;
+            --card-border-left: #00ADB5;
+            --card-text: #e4e6eb;
+        }
+    }
+    [data-testid="stMetric"] {
+        background-color: var(--metric-bg);
+        border: var(--metric-border);
+        border-radius: var(--metric-border-radius);
+        padding: var(--metric-padding);
+        transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    [data-testid="stMetricLabel"] {
+        color: var(--metric-label) !important;
+        font-size: 0.9rem !important;
+        font-weight: 400 !important;
+    }
+
+    [data-testid="stMetricValue"] {
+        color: var(--metric-value) !important;
+        font-size: 2rem !important;
+        font-weight: 600 !important;
+    }
+
+    [data-testid="stMetricDelta"] {
+        color: var(--metric-delta) !important;
+        font-size: 0.9rem !important;
+    }
+    [data-testid="stMetricDelta"] svg {
+        fill: currentColor;
+    }
+    [data-testid="stMetricDelta"][data-testid="stMetricDelta-positive"] {
+        color: var(--metric-delta-positive) !important;
+    }
+    [data-testid="stMetricDelta"][data-testid="stMetricDelta-negative"] {
+        color: var(--metric-delta-negative) !important;
+    }
+    .agent-stat-card {
+        background-color: var(--card-bg);
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 5px solid var(--card-border-left);
+        color: var(--card-text);
+        transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -53,19 +119,19 @@ with col1:
     last_active = data.get("last_active_time", time.time())
     diff = int(time.time() - last_active)
     label = "🟢 运行中" if diff < 15 else "🔴 已挂起"
-    st.metric("系统心跳", f"{label}", f"{diff}s 前刷新")
+    st.metric("系统心跳", f"{label}", f"{diff}s 前刷新", height = 128)
 
 with col2:
-    st.metric("💰 Token 总量", f"{data.get('token_total', 0):,}")
+    st.metric("💰 Token 总量", f"{data.get('token_total', 0):,}", height = 128)
 
 with col3:
     start_time = data.get("system_start_time", time.time())
     run_duration = int(time.time() - start_time)
     m, s = divmod(run_duration, 60)
-    st.metric("⏱️ 运行时间", f"{m}分 {s}秒")
+    st.metric("⏱️ 运行时间", f"{m}分 {s}秒", height = 128)
 
 with col4:
-    st.metric("👑 当前执政", data.get("current_agent", "System"))
+    st.metric("👑 当前执政", data.get("current_agent", "System"), height = 128)
 
 st.divider()
 
