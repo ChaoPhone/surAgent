@@ -7,7 +7,7 @@ import pandas as pd
 import altair as alt
 import streamlit.components.v1 as components
 
-# === 页面配置 ===
+# 页面配置
 st.set_page_config(
     page_title="SurAgent Command Center",
     page_icon="🛡️",
@@ -90,7 +90,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# === 数据加载 ===
+# 数据加载
 def load_data():
     path = os.path.join("Debug", "run_state.json")
     if os.path.exists(path):
@@ -110,9 +110,6 @@ if not data:
     time.sleep(2)
     st.rerun()
 
-# ==============================================================================
-# 1. 顶层：极简 HUD
-# ==============================================================================
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
@@ -131,16 +128,14 @@ with col3:
     st.metric("运行时间", f"{m}分 {s}秒", height = 128)
 
 with col4:
-    st.metric("当前执政", data.get("current_agent", "System"), height = 128)
+    current_agent = data.get("current_agent", "System")
+    st.metric("当前执政", current_agent, height = 128)
 
 st.divider()
 
-# ==============================================================================
-# 2. 核心层：战术指挥台 (Tactical Command)
-# ==============================================================================
 col_map, col_inspector = st.columns([1.5, 1])
 
-# --- 左侧：动态拓扑图 ---
+# 左侧：动态拓扑图
 with col_map:
     st.subheader("协作拓扑")
 
@@ -153,7 +148,6 @@ with col_map:
     mermaid_code += "  Start((🚀)) --> Summoner\n"
 
     # 绘制主干
-    # 简化：只显示最近的链路，避免图过大
     display_trace = trace[-8:] if len(trace) > 8 else trace
     if len(trace) > 8:
         mermaid_code += f"  Previous[...] --> {display_trace[0]}\n"
@@ -168,10 +162,9 @@ with col_map:
         mermaid_code += f"\n  subgraph Parallel_Batch [⚡ {manager} 的子任务]\n"
         mermaid_code += "  direction TB\n"
         for task in latest['tasks']:
-            role = task['role'].replace(" ", "_")  # 安全清洗
+            role = task['role'].replace(" ", "_") 
             mermaid_code += f"    {manager} -.-> {role}({role})\n"
 
-            # 状态染色 (根据 agent_stats)
             stats = data.get("agent_stats", {}).get(task['role'], {})
             status = stats.get("status", "idle")
             if status == "finished":
@@ -198,13 +191,11 @@ with col_map:
     """
     components.html(mermaid_html, height=350, scrolling=True)
 
-# --- 右侧：审查面板 (Inspector) ---
+# 右侧：审查面板
 with col_inspector:
     st.subheader("节点审查")
 
-    # 1. 获取所有已知 Agent
     all_agents = list(data.get("agent_stats", {}).keys())
-    # 加上 Profile 里有的但可能还没跑数据的
     all_agents += list(data.get("agent_profiles", {}).keys())
     all_agents = sorted(list(set(all_agents)))
 
@@ -212,25 +203,34 @@ with col_inspector:
         st.info("暂无 Agent 活跃数据")
     else:
         # 联动选择器
-        selected_agent = st.selectbox("🔍 选择要审查的 Agent", all_agents, index=0)
+        selected_agent = st.selectbox("选择要审查的 Agent", all_agents, index=0)
 
         # 读取数据
         stats = data.get("agent_stats", {}).get(selected_agent, {})
         profile = data.get("agent_profiles", {}).get(selected_agent, {})
 
+        agent_status = stats.get('status', 'unknown')
+        agent_state_map = {
+            "idle" : "空闲",
+            "thinking" : "思考中",
+            "finished" : "已完工",
+            "error" : "出错",
+            "unknown" : "未知",
+            }
+
         # 展示卡片
         st.markdown(f"""
         <div class="agent-stat-card">
             <h3>🤖 {selected_agent}</h3>
-            <div><strong>Status:</strong> {stats.get('status', 'Unknown')}</div>
-            <div><strong>Last Active:</strong> {time.strftime('%H:%M:%S', time.localtime(stats.get('last_seen', 0))) if stats else 'N/A'}</div>
+            <div><strong>状态: </strong> {agent_state_map.get(agent_status, "未知")}</div>
+            <div><strong>最后活跃于: </strong> {time.strftime('%H:%M:%S', time.localtime(stats.get('last_seen', 0))) if stats else 'N/A'}</div>
             <hr style="border-color: #444;">
             <div style="display: flex; justify-content: space-between;">
-                <span style="color: #42A5F5;">📥 Input: {stats.get('input', 0):,}</span>
-                <span style="color: #FFA726;">📤 Output: {stats.get('output', 0):,}</span>
+                <span style="color: #42A5F5;">输入 Token: {stats.get('input', 0):,}</span>
+                <span style="color: #FFA726;">输出 Token: {stats.get('output', 0):,}</span>
             </div>
             <div style="text-align: right; font-weight: bold; margin-top: 5px;">
-                Total: {stats.get('tokens', 0):,}
+                总计 Token: {stats.get('tokens', 0):,}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -243,13 +243,9 @@ with col_inspector:
         else:
             st.caption("*该 Agent 为系统预设或尚未被并行调度捕获，暂无 Prompt 记录*")
 
-# ==============================================================================
-# 3. 资源透视 (堆叠柱状图)
-# ==============================================================================
 st.subheader("资源消耗透视")
 
 if data.get("agent_stats"):
-    # 数据转换：Flat Map
     chart_data = []
     for name, s in data["agent_stats"].items():
         chart_data.append({"Agent": name, "Type": "Input", "Tokens": s.get("input", 0)})
@@ -267,13 +263,10 @@ if data.get("agent_stats"):
 
     st.altair_chart(chart, width="content")
 
-# ==============================================================================
-# 4. 日志层：黑客终端
-# ==============================================================================
 st.divider()
 st.subheader("实时信号流")
 
-logs = data.get("logs", [])[-30:]  # 显示最后30条
+logs = data.get("logs", [])[-30:]
 log_html = """
 <div style="background-color: #000; padding: 15px; border-radius: 5px; height: 300px; overflow-y: auto;">
     <style>
@@ -311,7 +304,6 @@ for log in reversed(logs):
     </div>
     """
 log_html += '</div>'
-# print(log_html)
 components.html(log_html, height = 300)
 
 st.divider()
@@ -324,6 +316,5 @@ with st.expander("点击展开/收起", expanded=False):
     else:
         st.caption("黑板暂无数据")
 
-# 自动刷新
 time.sleep(2)
 st.rerun()
