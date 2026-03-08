@@ -247,24 +247,51 @@ st.subheader("资源消耗透视")
 
 if data.get("agent_stats"):
     # print(data.get("agent_stats"))
-    chart_data = []
+    chart_data_input = []
     for name, s in data["agent_stats"].items():
-        if not (int(s.get("input", 0)) == 0 and int(s.get("output", 0)) == 0):
-            chart_data.append({"Agent": name, "Type": "Input", "Tokens": int(s.get("input", 0))})
-            chart_data.append({"Agent": name, "Type": "Output", "Tokens": int(s.get("output", 0))})
-
-    df_chart = pd.DataFrame(chart_data)
+        if int(s.get("input", 0)) != 0:
+            chart_data_input.append({"Agent": name, "Type": "Input", "Tokens": int(s.get("input", 0))})
+    try:
+        df_chart_input = pd.DataFrame(chart_data_input)
+        input_token_max = int(df_chart_input["Tokens"].max())
+        input_token_digits = len(str(input_token_max))
+    except:
+        pass
     # print(df_chart)
 
     # Altair 堆叠图
-    chart = alt.Chart(df_chart).mark_bar().encode(
+    chart_data_input = alt.Chart(df_chart_input).mark_bar().encode(
         x=alt.X('Agent', title=None, sort='-y'),
-        y=alt.Y('Tokens', title='Token Count'),
-        color=alt.Color('Type', scale=alt.Scale(domain=['Input', 'Output'], range=['#42A5F5', '#FFA726'])),
+        y=alt.Y('Tokens', title='Token Count', scale=alt.Scale(domain=[0, input_token_max + int(0.25*10**(input_token_digits-1))])),
+        color=alt.Color('Type', scale=alt.Scale(domain=['Input'], range=['#42A5F5'])),
         tooltip=['Agent', 'Type', 'Tokens']
-    ).properties(height=512, width = "container")
+    ).properties(height=256, width = "container")
 
-    st.altair_chart(chart)
+    st.altair_chart(chart_data_input)
+
+    chart_data_output = []
+    for name, s in data["agent_stats"].items():
+        if int(s.get("output", 0)) != 0:
+            chart_data_output.append({"Agent": name, "Type": "Output", "Tokens": int(s.get("output", 0))})
+
+    try:
+        df_chart_output = pd.DataFrame(chart_data_output)
+        output_token_max = int(df_chart_output["Tokens"].max())
+        output_token_digits = len(str(output_token_max))
+    except:
+        pass
+    # print(df_chart)
+
+    # Altair 堆叠图
+    chart_data_output = alt.Chart(df_chart_output).mark_bar().encode(
+        x=alt.X('Agent', title=None, sort='-y'),
+        y=alt.Y('Tokens', title='Token Count',
+                scale=alt.Scale(domain=[0, output_token_max + int(1.25*10**(output_token_digits-1))])),
+        color=alt.Color('Type', scale=alt.Scale(domain=['Output'], range=['#FFA726'])),
+        tooltip=['Agent', 'Type', 'Tokens']
+    ).properties(height=256, width = "container")
+
+    st.altair_chart(chart_data_output)
 else:
     print("WARN: Agent stats not found in run_state.json")
 
