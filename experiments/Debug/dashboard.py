@@ -246,12 +246,15 @@ with col_inspector:
 st.subheader("资源消耗透视")
 
 if data.get("agent_stats"):
+    # print(data.get("agent_stats"))
     chart_data = []
     for name, s in data["agent_stats"].items():
-        chart_data.append({"Agent": name, "Type": "Input", "Tokens": s.get("input", 0)})
-        chart_data.append({"Agent": name, "Type": "Output", "Tokens": s.get("output", 0)})
+        if not (int(s.get("input", 0)) == 0 and int(s.get("output", 0)) == 0):
+            chart_data.append({"Agent": name, "Type": "Input", "Tokens": int(s.get("input", 0))})
+            chart_data.append({"Agent": name, "Type": "Output", "Tokens": int(s.get("output", 0))})
 
     df_chart = pd.DataFrame(chart_data)
+    # print(df_chart)
 
     # Altair 堆叠图
     chart = alt.Chart(df_chart).mark_bar().encode(
@@ -259,9 +262,11 @@ if data.get("agent_stats"):
         y=alt.Y('Tokens', title='Token Count'),
         color=alt.Color('Type', scale=alt.Scale(domain=['Input', 'Output'], range=['#42A5F5', '#FFA726'])),
         tooltip=['Agent', 'Type', 'Tokens']
-    ).properties(height=250, width='container')
+    ).properties(height=250, width = "container")
 
-    st.altair_chart(chart, width="content")
+    st.altair_chart(chart)
+else:
+    print("WARN: Agent stats not found in run_state.json")
 
 st.divider()
 st.subheader("实时信号流")
