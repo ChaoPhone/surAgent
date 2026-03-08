@@ -262,7 +262,7 @@ if data.get("agent_stats"):
         y=alt.Y('Tokens', title='Token Count'),
         color=alt.Color('Type', scale=alt.Scale(domain=['Input', 'Output'], range=['#42A5F5', '#FFA726'])),
         tooltip=['Agent', 'Type', 'Tokens']
-    ).properties(height=250, width = "container")
+    ).properties(height=512, width = "container")
 
     st.altair_chart(chart)
 else:
