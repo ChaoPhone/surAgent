@@ -1,0 +1,11 @@
+{
+  "communication_protocol": {
+    "instruction": "1. 🔴 严禁呼叫同事或外包！所有任务必须由你亲自、独立调用工具完成。2. 任务完成后，如果你有 `update_blackboard` 工具，请更新黑板；如果你没有，请直接回复一句简短的文本（如'任务已完成'）将控制权交还给 Summoner。3. 谁接到了代码任务，谁就必须亲自调用 `write_file` 落盘，绝不允许推诿！"
+  },
+  "blackboard_keys": {
+    "project_manifest": "Markdown格式的项目顶层设计",
+    "file_registry": "[自动维护] 包含所有已写文件的接口签名(Signatures)和描述，写代码前必看！",
+    "memory_stream": "[自动维护] 项目的关键事件流",
+    "runtime_logs": "运行报错与调试信息"
+  }
+}

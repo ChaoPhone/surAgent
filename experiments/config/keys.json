@@ -1,0 +1,10 @@
+{
+  "deepseek": {
+    "api_key": "sk-50b6ad3c3b2c4e55b2969f02dd29456c",
+    "base_url": "https://api.deepseek.com"
+  },
+  "openrouter": {
+    "api_key": "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",
+    "base_url": "https://openrouter.ai/api/v1"
+  }
+}

@@ -1,0 +1,39 @@
+[
+  {
+    "name": "Summoner",
+    "is_root": true,
+    "model": "deepseek-chat",
+    "provider": "deepseek",
+    "prompt_file": "Summoner.md",
+    "tools": ["dispatch_mission", "read_blackboard", "mark_mission_complete"]
+  },
+  {
+    "name": "Architect",
+    "model": "deepseek-chat",
+    "provider": "deepseek",
+    "prompt_file": "Architect.md",
+    "tools": ["list_directory", "read_file", "write_file", "update_blackboard", "read_blackboard",  "web_search"]
+  },
+  {
+    "name": "TechLead",
+    "model": "deepseek-chat",
+    "provider": "deepseek",
+    "prompt_file": "TechLead.md",
+    "tools": ["list_directory","write_file", "read_file", "run_shell_command", "replace_file_lines", "read_blackboard", "batch_coding_tasks"]
+  },
+  {
+    "name": "Inspector",
+    "model": "deepseek-chat",
+    "provider": "deepseek",
+    "prompt_file": "Inspector.md",
+    "tools": ["read_file", "run_shell_command", "run_python_code", "update_blackboard", "read_blackboard" ]
+  },
+
+  {
+      "name": "Pruner",
+      "model": "gpt-4o-mini", 
+      "provider": "openrouter", 
+      "prompt_file": "Pruner.md",
+      "tools": []
+    }
+]
